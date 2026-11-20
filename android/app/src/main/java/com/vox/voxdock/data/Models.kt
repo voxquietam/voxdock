@@ -99,7 +99,11 @@ data class ActaTaskSummary(
     val identifier: String = "",
     val title: String = "",
     val status: String = "",
-    val priority: String = ""
+    val priority: String = "",
+    val url: String = "",
+    val project: String = "",
+    val assignee: String = "",
+    val labels: List<String> = emptyList()
 )
 
 @Serializable

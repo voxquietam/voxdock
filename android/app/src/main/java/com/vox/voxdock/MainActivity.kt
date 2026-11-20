@@ -31,7 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-private enum class ActiveOverlay { NONE, MAP, WEATHER, POWER, UNSEEN, LAYOUT, SETTINGS }
+private enum class ActiveOverlay { NONE, MAP, WEATHER, POWER, UNSEEN, ACTA, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
@@ -156,11 +156,8 @@ class MainActivity : ComponentActivity() {
                         findings = dashboard.unseen,
                         onClose = { overlay = ActiveOverlay.NONE }
                     )
-                    ActiveOverlay.LAYOUT -> LayoutEditorOverlay(
-                        initialPages = settings.pages,
-                        onSave = { updatedPages ->
-                            settingsStore.update { it.copy(pages = updatedPages) }
-                        },
+                    ActiveOverlay.ACTA -> ActaOverlay(
+                        acta = dashboard.acta,
                         onClose = { overlay = ActiveOverlay.NONE }
                     )
                     ActiveOverlay.SETTINGS -> SettingsOverlay(
@@ -209,13 +206,16 @@ class MainActivity : ComponentActivity() {
                                 lastInteractionMs = System.currentTimeMillis()
                                 overlay = ActiveOverlay.UNSEEN
                             },
-                            onOpenLayout = {
+                            onOpenActa = {
                                 lastInteractionMs = System.currentTimeMillis()
-                                overlay = ActiveOverlay.LAYOUT
+                                overlay = ActiveOverlay.ACTA
                             },
                             onOpenSettings = {
                                 lastInteractionMs = System.currentTimeMillis()
                                 overlay = ActiveOverlay.SETTINGS
+                            },
+                            onUpdatePages = { updatedPages ->
+                                settingsStore.update { it.copy(pages = updatedPages) }
                             },
                             onTriggerUpdate = {
                                 val target = availableUpdate ?: return@DashboardScreen

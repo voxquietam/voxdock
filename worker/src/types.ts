@@ -77,6 +77,10 @@ export interface ActaTaskSummary {
   title: string;
   status: string;
   priority: string;
+  url: string;
+  project: string;
+  assignee: string;
+  labels: string[];
 }
 
 export interface ActaPayload {

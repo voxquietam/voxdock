@@ -2,7 +2,6 @@ import { readCache, writeCache } from "../cache";
 import type { ActaPayload, ActaTaskSummary, Env } from "../types";
 
 function parseMcpTextResponse(rawText: string): unknown {
-  // Handle both direct JSON and SSE "data: {...}" frames from Streamable HTTP MCP servers
   const trimmed = rawText.trim();
   if (trimmed.startsWith("{")) {
     return JSON.parse(trimmed);
@@ -34,7 +33,7 @@ export async function getActaTasks(env: Env): Promise<ActaPayload> {
     };
   }
 
-  const cached = await readCache<ActaPayload>(env.DB, "acta_tasks", 600);
+  const cached = await readCache<ActaPayload>(env.DB, "acta_tasks_v2", 600);
   if (cached) return cached;
 
   try {
@@ -52,7 +51,7 @@ export async function getActaTasks(env: Env): Promise<ActaPayload> {
         method: "tools/call",
         params: {
           name: "acta_tasks_list",
-          arguments: { limit: 15 }
+          arguments: { limit: 20 }
         }
       })
     });
@@ -85,40 +84,35 @@ export async function getActaTasks(env: Env): Promise<ActaPayload> {
           if (lowerSt.includes("done") || lowerSt.includes("cancel") || lowerSt.includes("archive")) {
             continue;
           }
+          const rawLabels = Array.isArray(t.labels) ? t.labels : [];
+          const labels = rawLabels
+            .map((l) => (typeof l === "string" ? l : String((l as Record<string, unknown>).name ?? "")))
+            .filter(Boolean);
+          const slug = String(t.slug ?? t.identifier ?? t.key ?? "");
           tasks.push({
-            id: String(t.id ?? ""),
-            identifier: String(t.identifier ?? t.key ?? t.code ?? ""),
+            id: String(t.id ?? slug),
+            identifier: slug,
             title: String(t.title ?? t.name ?? "Untitled"),
             status,
-            priority: String(t.priority ?? "")
+            priority: String(t.priority ?? ""),
+            url: String(t.url ?? ""),
+            project: String(t.project_name ?? t.project_slug_prefix ?? ""),
+            assignee: String(t.assignee_username ?? ""),
+            labels
           });
         }
       } catch {
-        // Fallback if tool returns plain text lines
-        textBlock
-          .split("\n")
-          .map((l) => l.trim())
-          .filter((l) => l.length > 3)
-          .slice(0, 8)
-          .forEach((line, idx) => {
-            tasks.push({
-              id: String(idx),
-              identifier: "",
-              title: line.slice(0, 80),
-              status: "open",
-              priority: ""
-            });
-          });
+        // Ignore unparseable response
       }
     }
 
     const payload: ActaPayload = {
       configured: true,
       count: tasks.length,
-      tasks: tasks.slice(0, 8),
+      tasks: tasks.slice(0, 15),
       updatedAt: new Date().toISOString()
     };
-    await writeCache(env.DB, "acta_tasks", payload);
+    await writeCache(env.DB, "acta_tasks_v2", payload);
     return payload;
   } catch {
     return {

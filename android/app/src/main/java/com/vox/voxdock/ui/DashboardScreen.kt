@@ -1,15 +1,19 @@
 package com.vox.voxdock.ui
 
 import android.content.res.Configuration
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -22,12 +26,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.vox.voxdock.data.*
 import com.vox.voxdock.notifications.CapturedNotification
 import com.vox.voxdock.notifications.MediaMonitor
@@ -38,6 +45,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DashboardScreen(
     dashboard: DashboardResponse,
@@ -54,9 +62,10 @@ fun DashboardScreen(
     onOpenWeather: () -> Unit,
     onOpenPower: () -> Unit,
     onOpenUnseen: () -> Unit,
-    onOpenLayout: () -> Unit,
+    onOpenActa: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerUpdate: () -> Unit,
+    onUpdatePages: (List<DockPage>) -> Unit,
     onDismissNote: (Int) -> Unit,
     onOpenNotification: (CapturedNotification) -> Unit,
     onDismissNotification: (String) -> Unit,
@@ -71,7 +80,6 @@ fun DashboardScreen(
         }
     }
 
-    // Night OLED minimal screen (auto-bypassed when red alert is active)
     if (isNightOled && dashboard.alerts.selected.level != "active") {
         NightOledScreen(
             clockText = clockText,
@@ -88,6 +96,10 @@ fun DashboardScreen(
     var activeSourceFilter by remember { mutableStateOf("ALL") }
     var previewNotif by remember { mutableStateOf<CapturedNotification?>(null) }
 
+    // Direct in-place Edit Mode (triggered by long-pressing any tile)
+    var editMode by remember { mutableStateOf(false) }
+    var showAddTilePicker by remember { mutableStateOf(false) }
+
     val filteredNotifs = remember(notifications, settings.mutedSources, activeSourceFilter) {
         notifications.filter { n ->
             !settings.mutedSources.contains(n.source) &&
@@ -95,7 +107,12 @@ fun DashboardScreen(
         }
     }
 
-    // Outer edge-to-edge container (so overlays like Preview dim the entire screen without cutout gaps)
+    fun mutatePage(pageIndex: Int, transform: (DockPage) -> DockPage) {
+        val next = pages.mapIndexed { i, pg -> if (i == pageIndex) transform(pg) else pg }
+        onUpdatePages(next)
+    }
+
+    // Outer edge-to-edge container
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -111,12 +128,58 @@ fun DashboardScreen(
                 ) { onWakeInteraction() }
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
-            // Swipeable configurable screens
+            // Compact in-place Edit Mode toolbar (only visible while editing)
+            if (editMode) {
+                val curIdx = pagerState.currentPage.coerceIn(0, pages.lastIndex)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .border(1.dp, Color(0xFF6366F1), RoundedCornerShape(6.dp))
+                        .background(p.card, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "EDIT · DRAG TO MOVE · EDGE ⋮ TO RESIZE",
+                        color = Color(0xFF818CF8),
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        SmallPill("+ TILE", false) { showAddTilePicker = true }
+                        if (pages.size < 5) {
+                            SmallPill("+ PAGE", false) {
+                                val next = pages + DockPage(
+                                    id = "p_${System.currentTimeMillis()}",
+                                    name = "Page ${pages.size + 1}",
+                                    tiles = listOf(DockTile(TileKind.CLOCK, 2))
+                                )
+                                onUpdatePages(next)
+                            }
+                        }
+                        if (pages.size > 1) {
+                            SmallPill("DEL PG", false) {
+                                onUpdatePages(pages.filterIndexed { i, _ -> i != curIdx })
+                            }
+                        }
+                        SmallPill("DONE", true) { editMode = false }
+                    }
+                }
+            }
+
+            // Swipeable screens (disable swipe while dragging tiles in editMode)
             HorizontalPager(
                 state = pagerState,
+                userScrollEnabled = !editMode,
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) { pageIndex ->
-                val page = pages[pageIndex]
+                val page = pages.getOrNull(pageIndex) ?: return@HorizontalPager
                 val cols = if (isLandscape) 4 else 2
 
                 LazyVerticalGrid(
@@ -124,104 +187,300 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp)
+                    contentPadding = PaddingValues(top = 2.dp, bottom = 8.dp)
                 ) {
-                    items(
+                    itemsIndexed(
                         items = page.tiles,
-                        key = { "${page.id}_${it.kind.name}" },
-                        span = { tile ->
+                        key = { _, tile -> "${page.id}_${tile.kind.name}" },
+                        span = { _, tile ->
                             val clamped = tile.span.coerceIn(tile.kind.minSpan, tile.kind.maxSpan)
                             GridItemSpan(clamped.coerceAtMost(cols))
                         }
-                    ) { tile ->
-                        when (tile.kind) {
-                            TileKind.CLOCK -> ClockTile(
-                                clockText = clockText,
-                                city = settings.city,
-                                settings = settings,
-                                syncError = syncError,
-                                updateAvailable = updateAvailable,
-                                updateProgress = updateProgress,
-                                onToggleDock = onToggleDock,
-                                onToggleTheme = onToggleTheme,
-                                onOpenLayout = onOpenLayout,
-                                onOpenSettings = onOpenSettings,
-                                onTriggerUpdate = onTriggerUpdate
-                            )
-                            TileKind.ALERT -> AlertTile(
-                                dashboard = dashboard,
-                                onOpenMap = onOpenMap
-                            )
-                            TileKind.WEATHER -> WeatherTile(
-                                dashboard = dashboard,
-                                onOpenWeather = onOpenWeather
-                            )
-                            TileKind.POWER -> PowerTile(
-                                dashboard = dashboard,
-                                onOpenPower = onOpenPower
-                            )
-                            TileKind.CURRENCY -> CurrencyTile(currency = dashboard.currency)
-                            TileKind.SUNSET_WAVES -> SunsetWavesTile(weather = dashboard.weather)
-                            TileKind.AIR_SENSORS -> AirSensorsTile(sensors = dashboard.sensors)
-                            TileKind.AGENT_STATUS -> AgentStatusStrip(dashboard = dashboard)
-                            TileKind.SPOTIFY -> SpotifyTile(nowPlaying = nowPlaying)
-                            TileKind.UNSEEN -> UnseenTile(
-                                dashboard = dashboard,
-                                onOpen = onOpenUnseen
-                            )
-                            TileKind.MCP_NOTES -> McpNotesCard(
-                                dashboard = dashboard,
-                                onDismissNote = onDismissNote
-                            )
-                            TileKind.ACTA_TASKS -> ActaTasksTile(acta = dashboard.acta)
-                            TileKind.INBOX -> NotificationsCard(
-                                items = filteredNotifs,
-                                activeFilter = activeSourceFilter,
-                                mutedSources = settings.mutedSources,
-                                onFilterChange = { activeSourceFilter = it },
-                                onOpen = { previewNotif = it },
-                                onDismiss = onDismissNotification,
-                                onToggleMute = onToggleMuteSource
-                            )
-                        }
-                    }
-                }
-            }
+                    ) { tileIdx, tile ->
+                        var dragX by remember(tile.kind) { mutableFloatStateOf(0f) }
+                        var dragY by remember(tile.kind) { mutableFloatStateOf(0f) }
+                        var isDragging by remember(tile.kind) { mutableStateOf(false) }
+                        var resizeAccum by remember(tile.kind) { mutableFloatStateOf(0f) }
+                        val canResize = tile.kind.minSpan != tile.kind.maxSpan
 
-            // Bottom bar: roaming pet + subtle page dots
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (settings.petEnabled) {
-                    RoamingPetStrip(
-                        alertLevel = dashboard.alerts.selected.level,
-                        powerStatus = dashboard.power.status,
-                        isPlayingMusic = nowPlaying.isPlaying
-                    )
-                }
-                if (pages.size > 1) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        pages.forEachIndexed { idx, _ ->
-                            val active = idx == pagerState.currentPage
-                            Box(
-                                modifier = Modifier
-                                    .size(if (active) 6.dp else 4.dp)
-                                    .clip(CircleShape)
-                                    .background(if (active) p.text else p.muted.copy(alpha = 0.4f))
-                            )
+                        Box(
+                            modifier = Modifier
+                                .zIndex(if (isDragging) 10f else 0f)
+                                .graphicsLayer {
+                                    translationX = dragX
+                                    translationY = dragY
+                                    scaleX = if (isDragging) 1.03f else 1f
+                                    scaleY = if (isDragging) 1.03f else 1f
+                                    alpha = if (isDragging) 0.92f else 1f
+                                }
+                                .then(
+                                    if (editMode) {
+                                        Modifier
+                                            .border(1.5.dp, Color(0xFF6366F1).copy(alpha = 0.85f), RoundedCornerShape(7.dp))
+                                            .pointerInput(page.tiles, tileIdx) {
+                                                detectDragGestures(
+                                                    onDragStart = { isDragging = true },
+                                                    onDragEnd = {
+                                                        isDragging = false
+                                                        dragX = 0f
+                                                        dragY = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        isDragging = false
+                                                        dragX = 0f
+                                                        dragY = 0f
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        dragX += dragAmount.x
+                                                        dragY += dragAmount.y
+                                                        val thresholdX = 90f
+                                                        val thresholdY = 75f
+                                                        val targetIdx = when {
+                                                            dragX > thresholdX -> (tileIdx + 1).coerceAtMost(page.tiles.lastIndex)
+                                                            dragX < -thresholdX -> (tileIdx - 1).coerceAtLeast(0)
+                                                            dragY > thresholdY -> (tileIdx + 2).coerceAtMost(page.tiles.lastIndex)
+                                                            dragY < -thresholdY -> (tileIdx - 2).coerceAtLeast(0)
+                                                            else -> tileIdx
+                                                        }
+                                                        if (targetIdx != tileIdx) {
+                                                            dragX = 0f
+                                                            dragY = 0f
+                                                            mutatePage(pageIndex) { pg ->
+                                                                val list = pg.tiles.toMutableList()
+                                                                val moved = list.removeAt(tileIdx)
+                                                                list.add(targetIdx, moved)
+                                                                pg.copy(tiles = list)
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                    } else {
+                                        Modifier.combinedClickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = { onWakeInteraction() },
+                                            onLongClick = { editMode = true }
+                                        )
+                                    }
+                                )
+                        ) {
+                            when (tile.kind) {
+                                TileKind.CLOCK -> ClockTile(
+                                    clockText = clockText,
+                                    city = settings.city,
+                                    settings = settings,
+                                    syncError = syncError,
+                                    updateAvailable = updateAvailable,
+                                    updateProgress = updateProgress,
+                                    onToggleDock = onToggleDock,
+                                    onToggleTheme = onToggleTheme,
+                                    onToggleEdit = { editMode = !editMode },
+                                    onOpenSettings = onOpenSettings,
+                                    onTriggerUpdate = onTriggerUpdate
+                                )
+                                TileKind.ALERT -> AlertTile(
+                                    dashboard = dashboard,
+                                    onOpenMap = { if (!editMode) onOpenMap() }
+                                )
+                                TileKind.WEATHER -> WeatherTile(
+                                    dashboard = dashboard,
+                                    onOpenWeather = { if (!editMode) onOpenWeather() }
+                                )
+                                TileKind.POWER -> PowerTile(
+                                    dashboard = dashboard,
+                                    onOpenPower = { if (!editMode) onOpenPower() }
+                                )
+                                TileKind.CURRENCY -> CurrencyTile(currency = dashboard.currency)
+                                TileKind.SUNSET_WAVES -> SunsetWavesTile(weather = dashboard.weather)
+                                TileKind.AIR_SENSORS -> AirSensorsTile(sensors = dashboard.sensors)
+                                TileKind.AGENT_STATUS -> AgentStatusStrip(dashboard = dashboard)
+                                TileKind.SPOTIFY -> SpotifyTile(nowPlaying = nowPlaying)
+                                TileKind.UNSEEN -> UnseenTile(
+                                    dashboard = dashboard,
+                                    onOpen = { if (!editMode) onOpenUnseen() }
+                                )
+                                TileKind.MCP_NOTES -> McpNotesCard(
+                                    dashboard = dashboard,
+                                    onDismissNote = { if (!editMode) onDismissNote(it) }
+                                )
+                                TileKind.ACTA_TASKS -> ActaTasksTile(
+                                    acta = dashboard.acta,
+                                    onOpen = { if (!editMode) onOpenActa() }
+                                )
+                                TileKind.INBOX -> NotificationsCard(
+                                    items = filteredNotifs,
+                                    activeFilter = activeSourceFilter,
+                                    mutedSources = settings.mutedSources,
+                                    onFilterChange = { activeSourceFilter = it },
+                                    onOpen = { if (!editMode) previewNotif = it },
+                                    onDismiss = onDismissNotification,
+                                    onToggleMute = onToggleMuteSource
+                                )
+                            }
+
+                            // Edit Mode overlays: remove (top-right) & drag-to-resize handle (right edge)
+                            if (editMode) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFEF4444))
+                                        .clickable {
+                                            mutatePage(pageIndex) { pg ->
+                                                pg.copy(tiles = pg.tiles.filterIndexed { i, _ -> i != tileIdx })
+                                            }
+                                        }
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text("✕", color = Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                }
+
+                                if (canResize) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .fillMaxHeight()
+                                            .width(20.dp)
+                                            .background(Color(0xFF6366F1).copy(alpha = 0.25f), RoundedCornerShape(topEnd = 7.dp, bottomEnd = 7.dp))
+                                            .pointerInput(tile.span, tileIdx) {
+                                                detectHorizontalDragGestures(
+                                                    onDragEnd = { resizeAccum = 0f },
+                                                    onHorizontalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        resizeAccum += dragAmount
+                                                        if (resizeAccum > 55f) {
+                                                            resizeAccum = 0f
+                                                            val next = (if (tile.span == 2) 4 else tile.span + 1)
+                                                                .coerceAtMost(tile.kind.maxSpan)
+                                                            if (next != tile.span) {
+                                                                mutatePage(pageIndex) { pg ->
+                                                                    pg.copy(tiles = pg.tiles.mapIndexed { i, t ->
+                                                                        if (i == tileIdx) t.copy(span = next) else t
+                                                                    })
+                                                                }
+                                                            }
+                                                        } else if (resizeAccum < -55f) {
+                                                            resizeAccum = 0f
+                                                            val next = (if (tile.span == 4) 2 else tile.span - 1)
+                                                                .coerceAtLeast(tile.kind.minSpan)
+                                                            if (next != tile.span) {
+                                                                mutatePage(pageIndex) { pg ->
+                                                                    pg.copy(tiles = pg.tiles.mapIndexed { i, t ->
+                                                                        if (i == tileIdx) t.copy(span = next) else t
+                                                                    })
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("⋮", color = Color(0xFFA5B4FC), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Edge-to-edge silent message preview popup (no cutout gap on the left)
+        // Page indicator dots (tiny, floating bottom-center, takes 0dp from grid)
+        if (pages.size > 1) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                pages.forEachIndexed { idx, _ ->
+                    val active = idx == pagerState.currentPage
+                    Box(
+                        modifier = Modifier
+                            .size(if (active) 6.dp else 4.dp)
+                            .clip(CircleShape)
+                            .background(if (active) p.text else p.muted.copy(alpha = 0.45f))
+                    )
+                }
+            }
+        }
+
+        // Pixel-art pet floating along the very bottom edge (0dp taken from grid height!)
+        if (settings.petEnabled) {
+            RoamingPetOverlay(
+                alertLevel = dashboard.alerts.selected.level,
+                powerStatus = dashboard.power.status,
+                isPlayingMusic = nowPlaying.isPlaying,
+                modifier = Modifier.align(Alignment.BottomStart)
+            )
+        }
+
+        // Quick Add Tile modal in Edit Mode
+        if (showAddTilePicker) {
+            val curIdx = pagerState.currentPage.coerceIn(0, pages.lastIndex)
+            val existing = pages[curIdx].tiles.map { it.kind }.toSet()
+            val available = TileKind.entries.filterNot { existing.contains(it) }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .clickable { showAddTilePicker = false }
+                    .safeDrawingPadding()
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 420.dp)
+                        .fillMaxWidth()
+                        .border(1.dp, p.border, RoundedCornerShape(7.dp))
+                        .background(p.card, RoundedCornerShape(7.dp))
+                        .clickable(enabled = false) {}
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("ADD TILE TO SCREEN", color = p.text, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        SmallPill("✕", false) { showAddTilePicker = false }
+                    }
+                    if (available.isEmpty()) {
+                        Text("All tiles are already on this screen.", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    } else {
+                        Column(
+                            modifier = Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            available.forEach { kind ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                                        .background(p.cardAlt, RoundedCornerShape(5.dp))
+                                        .clickable {
+                                            mutatePage(curIdx) { pg ->
+                                                pg.copy(tiles = pg.tiles + DockTile(kind, kind.defaultSpan))
+                                            }
+                                            showAddTilePicker = false
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("+ ${kind.title}", color = p.text, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                    Text("span ${kind.minSpan}..${kind.maxSpan}", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Edge-to-edge silent message preview popup
         previewNotif?.let { item ->
             NotificationPreviewDialog(
                 item = item,
@@ -249,7 +508,7 @@ private fun ClockTile(
     updateProgress: Int?,
     onToggleDock: () -> Unit,
     onToggleTheme: () -> Unit,
-    onOpenLayout: () -> Unit,
+    onToggleEdit: () -> Unit,
     onOpenSettings: () -> Unit,
     onTriggerUpdate: () -> Unit
 ) {
@@ -295,7 +554,7 @@ private fun ClockTile(
             }
             SmallPill(label = if (settings.dockMode) "☾ ON" else "☾", highlighted = settings.dockMode, onClick = onToggleDock)
             SmallPill(label = if (settings.darkTheme) "☀" else "☾", highlighted = false, onClick = onToggleTheme)
-            SmallPill(label = "⊞", highlighted = false, onClick = onOpenLayout)
+            SmallPill(label = "⊞", highlighted = false, onClick = onToggleEdit)
             SmallPill(label = "⚙", highlighted = false, onClick = onOpenSettings)
         }
     }
@@ -530,28 +789,63 @@ private fun SpotifyTile(nowPlaying: NowPlayingState) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SmallPill("⏮", false) { MediaMonitor.previous() }
-            SmallPill(if (nowPlaying.isPlaying) "⏸ PAUSE" else "▶ PLAY", nowPlaying.isPlaying) { MediaMonitor.togglePlayPause() }
-            SmallPill("⏭", false) { MediaMonitor.next() }
+        // Full-width playback controls bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            FullWidthMediaBtn("⏮", false, Modifier.weight(1f)) { MediaMonitor.previous() }
+            FullWidthMediaBtn(
+                label = if (nowPlaying.isPlaying) "⏸ PAUSE" else "▶ PLAY",
+                highlighted = nowPlaying.isPlaying,
+                modifier = Modifier.weight(1.6f)
+            ) { MediaMonitor.togglePlayPause() }
+            FullWidthMediaBtn("⏭", false, Modifier.weight(1f)) { MediaMonitor.next() }
         }
     }
 }
 
 @Composable
-private fun ActaTasksTile(acta: ActaPayload) {
+private fun FullWidthMediaBtn(
+    label: String,
+    highlighted: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val p = LocalVoxPalette.current
+    Box(
+        modifier = modifier
+            .border(1.dp, if (highlighted) Color(0xFF1DB954) else p.border, RoundedCornerShape(5.dp))
+            .background(if (highlighted) Color(0xFF1DB954).copy(alpha = 0.25f) else p.cardAlt, RoundedCornerShape(5.dp))
+            .clickable { onClick() }
+            .padding(vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (highlighted) Color(0xFF4ADE80) else p.text,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
+private fun ActaTasksTile(acta: ActaPayload, onOpen: () -> Unit) {
     val p = LocalVoxPalette.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Color(0xFF6366F1).copy(alpha = 0.45f), RoundedCornerShape(7.dp))
             .background(p.card, RoundedCornerShape(7.dp))
+            .clickable { onOpen() }
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("ACTA // MY TASKS", color = Color(0xFF818CF8), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-            Text("${acta.count}", color = p.text, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+            Text("${acta.count} ↗", color = p.text, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
         }
         if (!acta.configured) {
             Text("ACTA MCP not configured", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
@@ -731,7 +1025,7 @@ private fun NotificationsCard(
                     val muted = mutedSources.contains(src)
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(4.dp))
                             .background(if (selected) p.text else p.cardAlt)
                             .clickable { onFilterChange(src) }
                             .padding(horizontal = 6.dp, vertical = 2.dp)

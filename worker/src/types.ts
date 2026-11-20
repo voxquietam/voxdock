@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database;
   VOXDOCK_TOKEN: string;
   ALERTS_IN_UA_TOKEN?: string;
+  ACTA_MCP_URL?: string;
+  ACTA_AUTH_HEADER?: string;
   DEFAULT_LAT: string;
   DEFAULT_LON: string;
   DEFAULT_CITY: string;
@@ -45,8 +47,43 @@ export interface WeatherPayload {
     windSpeed: number;
     weatherCode: number;
     seaTemp: number | null;
+    waveHeight: number | null;
+    sunrise: string | null;
+    sunset: string | null;
   };
   daily: DailyForecast[];
+}
+
+export interface CurrencyPayload {
+  usdBuy: number;
+  usdSell: number;
+  eurBuy: number;
+  eurSell: number;
+  updatedAt: string;
+}
+
+export interface SensorsPayload {
+  aqi: number;
+  pm25: number;
+  pm10: number;
+  dust: number;
+  label: string;
+  updatedAt: string;
+}
+
+export interface ActaTaskSummary {
+  id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  priority: string;
+}
+
+export interface ActaPayload {
+  configured: boolean;
+  count: number;
+  tasks: ActaTaskSummary[];
+  updatedAt: string;
 }
 
 export type UnseenCategory = "sea" | "air" | "quake" | "space" | "bio";

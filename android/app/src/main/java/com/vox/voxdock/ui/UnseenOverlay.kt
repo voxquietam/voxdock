@@ -67,8 +67,8 @@ fun UnseenOverlay(
             }
             Box(
                 modifier = Modifier
-                    .border(1.dp, p.border, RoundedCornerShape(10.dp))
-                    .background(p.card, RoundedCornerShape(10.dp))
+                    .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                    .background(p.card, RoundedCornerShape(5.dp))
                     .clickable { onClose() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -87,8 +87,8 @@ fun UnseenOverlay(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .border(1.dp, p.border, RoundedCornerShape(16.dp))
-                    .background(p.card, RoundedCornerShape(16.dp)),
+                    .border(1.dp, p.border, RoundedCornerShape(7.dp))
+                    .background(p.card, RoundedCornerShape(7.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -108,8 +108,8 @@ fun UnseenOverlay(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
-                            .background(p.card, RoundedCornerShape(16.dp))
+                            .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
+                            .background(p.card, RoundedCornerShape(7.dp))
                             .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {

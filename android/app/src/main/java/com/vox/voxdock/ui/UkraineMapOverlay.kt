@@ -87,8 +87,8 @@ fun UkraineMapOverlay(
             Column(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .border(1.dp, p.border, RoundedCornerShape(12.dp))
-                    .background(p.card.copy(alpha = 0.88f), RoundedCornerShape(12.dp))
+                    .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                    .background(p.card.copy(alpha = 0.88f), RoundedCornerShape(5.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -110,8 +110,8 @@ fun UkraineMapOverlay(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .border(1.dp, p.border, RoundedCornerShape(10.dp))
-                    .background(p.card.copy(alpha = 0.88f), RoundedCornerShape(10.dp))
+                    .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                    .background(p.card.copy(alpha = 0.88f), RoundedCornerShape(5.dp))
                     .clickable { onClose() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -128,8 +128,8 @@ fun UkraineMapOverlay(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .border(1.dp, badgeColor.copy(alpha = 0.65f), RoundedCornerShape(12.dp))
-                    .background(p.card.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
+                    .border(1.dp, badgeColor.copy(alpha = 0.65f), RoundedCornerShape(5.dp))
+                    .background(p.card.copy(alpha = 0.9f), RoundedCornerShape(5.dp))
                     .padding(horizontal = 12.dp, vertical = 7.dp)
             ) {
                 Text(
@@ -180,8 +180,8 @@ fun UkraineMapOverlay(
                 }
                 Box(
                     modifier = Modifier
-                        .border(1.dp, p.border, RoundedCornerShape(10.dp))
-                        .background(p.card, RoundedCornerShape(10.dp))
+                        .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                        .background(p.card, RoundedCornerShape(5.dp))
                         .clickable { onClose() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -199,8 +199,8 @@ fun UkraineMapOverlay(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .border(1.dp, p.border, RoundedCornerShape(20.dp))
-                    .background(p.card, RoundedCornerShape(20.dp))
+                    .border(1.dp, p.border, RoundedCornerShape(7.dp))
+                    .background(p.card, RoundedCornerShape(7.dp))
                     .padding(10.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -216,8 +216,8 @@ fun UkraineMapOverlay(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, badgeColor.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
-                    .background(p.card, RoundedCornerShape(14.dp))
+                    .border(1.dp, badgeColor.copy(alpha = 0.6f), RoundedCornerShape(7.dp))
+                    .background(p.card, RoundedCornerShape(7.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically

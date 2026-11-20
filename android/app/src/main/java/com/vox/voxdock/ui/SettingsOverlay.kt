@@ -48,6 +48,7 @@ fun SettingsOverlay(
     var queue by remember { mutableStateOf(settings.powerQueue) }
     var autoDock by remember { mutableStateOf(settings.autoDockOnCharge) }
     var nightOled by remember { mutableStateOf(settings.nightOledEnabled) }
+    var petEnabled by remember { mutableStateOf(settings.petEnabled) }
     var enabledUnseen by remember { mutableStateOf(settings.enabledUnseen) }
 
     Column(
@@ -74,8 +75,8 @@ fun SettingsOverlay(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     modifier = Modifier
-                        .border(1.dp, p.border, RoundedCornerShape(10.dp))
-                        .background(p.card, RoundedCornerShape(10.dp))
+                        .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                        .background(p.card, RoundedCornerShape(5.dp))
                         .clickable { onClose() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -83,7 +84,7 @@ fun SettingsOverlay(
                 }
                 Box(
                     modifier = Modifier
-                        .background(p.weatherBorder, RoundedCornerShape(10.dp))
+                        .background(p.weatherBorder, RoundedCornerShape(5.dp))
                         .clickable {
                             onSave(
                                 settings.copy(
@@ -95,6 +96,7 @@ fun SettingsOverlay(
                                     powerQueue = queue.trim(),
                                     autoDockOnCharge = autoDock,
                                     nightOledEnabled = nightOled,
+                                    petEnabled = petEnabled,
                                     enabledUnseen = enabledUnseen
                                 )
                             )
@@ -178,11 +180,11 @@ fun SettingsOverlay(
                         .border(
                             1.dp,
                             if (active) p.unseenBorder else p.border,
-                            RoundedCornerShape(10.dp)
+                            RoundedCornerShape(5.dp)
                         )
                         .background(
                             if (active) p.unseenBg else p.card,
-                            RoundedCornerShape(10.dp)
+                            RoundedCornerShape(5.dp)
                         )
                         .clickable {
                             enabledUnseen = if (active) enabledUnseen - key else enabledUnseen + key
@@ -216,13 +218,21 @@ fun SettingsOverlay(
             Text("Night OLED mode (23:00 - 07:00)", color = p.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             Switch(checked = nightOled, onCheckedChange = { nightOled = it })
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Roaming mini pet along bottom edge", color = p.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            Switch(checked = petEnabled, onCheckedChange = { petEnabled = it })
+        }
 
         // Notification access button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, p.border, RoundedCornerShape(12.dp))
-                .background(p.card, RoundedCornerShape(12.dp))
+                .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                .background(p.card, RoundedCornerShape(5.dp))
                 .clickable {
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 }

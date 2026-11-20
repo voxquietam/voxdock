@@ -12,26 +12,25 @@ import android.service.notification.NotificationListenerService
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.*
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.compose.runtime.*
 import com.vox.voxdock.data.AppSettings
 import com.vox.voxdock.data.DashboardResponse
 import com.vox.voxdock.data.SettingsStore
 import com.vox.voxdock.data.VoxDockApi
+import com.vox.voxdock.notifications.MediaMonitor
+import com.vox.voxdock.notifications.NotificationCaptureService
 import com.vox.voxdock.notifications.NotificationStore
-import com.vox.voxdock.ui.DashboardScreen
-import com.vox.voxdock.ui.SettingsOverlay
-import com.vox.voxdock.ui.UkraineMapOverlay
-import com.vox.voxdock.ui.UnseenOverlay
-import com.vox.voxdock.ui.WeatherForecastOverlay
+import com.vox.voxdock.ui.*
 import com.vox.voxdock.ui.theme.VoxDockTheme
+import com.vox.voxdock.widget.VoxDockWidgetProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-private enum class ActiveOverlay { NONE, MAP, WEATHER, UNSEEN, SETTINGS }
+private enum class ActiveOverlay { NONE, MAP, WEATHER, POWER, UNSEEN, LAYOUT, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
@@ -50,16 +49,16 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         settingsStore = SettingsStore(this)
         registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        // Ensure NotificationCaptureService rebinds automatically after APK updates
         runCatching {
             NotificationListenerService.requestRebind(
-                ComponentName(this, com.vox.voxdock.notifications.NotificationCaptureService::class.java)
+                ComponentName(this, NotificationCaptureService::class.java)
             )
         }
 
         setContent {
             val settings by settingsStore.state.collectAsState()
             val notifications by NotificationStore.items.collectAsState()
+            val nowPlaying by MediaMonitor.state.collectAsState()
             val scope = rememberCoroutineScope()
 
             var dashboard by remember { mutableStateOf(DashboardResponse()) }
@@ -72,7 +71,7 @@ class MainActivity : ComponentActivity() {
             val effectiveDock = settings.dockMode || (settings.autoDockOnCharge && isCharging && isLandscape)
             val nightOled = effectiveDock && settings.nightOledEnabled && isQuietHour(settings) && dimmed
 
-            // Keep screen on, toggle immersive bars & control window brightness in Dock Mode
+            // Keep screen on, toggle immersive bars & control brightness in Dock Mode
             LaunchedEffect(effectiveDock, dimmed, dashboard.alerts.selected.level, settings.darkTheme) {
                 val controller = WindowCompat.getInsetsController(window, window.decorView)
                 controller.isAppearanceLightStatusBars = !settings.darkTheme
@@ -107,6 +106,14 @@ class MainActivity : ComponentActivity() {
                 dimmed = true
             }
 
+            // Refresh Now Playing (Spotify / YT Music) every 3 seconds
+            LaunchedEffect(Unit) {
+                while (true) {
+                    MediaMonitor.refresh(this@MainActivity)
+                    delay(3_000L)
+                }
+            }
+
             // Periodic poll of Cloudflare Worker
             LaunchedEffect(settings.workerUrl, settings.apiToken, settings.city, settings.oblastUid, settings.enabledUnseen, effectiveDock) {
                 while (true) {
@@ -118,7 +125,7 @@ class MainActivity : ComponentActivity() {
                             }
                             dashboard = it
                             syncError = null
-                            com.vox.voxdock.widget.VoxDockWidgetProvider.pushState(this@MainActivity, it)
+                            VoxDockWidgetProvider.pushState(this@MainActivity, it)
                         }.onFailure { err ->
                             syncError = err.message
                         }
@@ -137,9 +144,21 @@ class MainActivity : ComponentActivity() {
                         weather = dashboard.weather,
                         onClose = { overlay = ActiveOverlay.NONE }
                     )
+                    ActiveOverlay.POWER -> PowerScheduleOverlay(
+                        power = dashboard.power,
+                        onOpenSettings = { overlay = ActiveOverlay.SETTINGS },
+                        onClose = { overlay = ActiveOverlay.NONE }
+                    )
                     ActiveOverlay.UNSEEN -> UnseenOverlay(
                         city = settings.city,
                         findings = dashboard.unseen,
+                        onClose = { overlay = ActiveOverlay.NONE }
+                    )
+                    ActiveOverlay.LAYOUT -> LayoutEditorOverlay(
+                        initialPages = settings.pages,
+                        onSave = { updatedPages ->
+                            settingsStore.update { it.copy(pages = updatedPages) }
+                        },
                         onClose = { overlay = ActiveOverlay.NONE }
                     )
                     ActiveOverlay.SETTINGS -> SettingsOverlay(
@@ -151,6 +170,7 @@ class MainActivity : ComponentActivity() {
                                 VoxDockApi.fetchDashboard(updated).onSuccess {
                                     dashboard = it
                                     syncError = null
+                                    VoxDockWidgetProvider.pushState(this@MainActivity, it)
                                 }
                             }
                         },
@@ -160,6 +180,7 @@ class MainActivity : ComponentActivity() {
                         dashboard = dashboard,
                         settings = settings.copy(dockMode = effectiveDock),
                         notifications = notifications,
+                        nowPlaying = nowPlaying,
                         syncError = syncError,
                         isNightOled = nightOled,
                         onToggleTheme = { settingsStore.update { it.copy(darkTheme = !it.darkTheme) } },
@@ -172,9 +193,17 @@ class MainActivity : ComponentActivity() {
                             lastInteractionMs = System.currentTimeMillis()
                             overlay = ActiveOverlay.WEATHER
                         },
+                        onOpenPower = {
+                            lastInteractionMs = System.currentTimeMillis()
+                            overlay = ActiveOverlay.POWER
+                        },
                         onOpenUnseen = {
                             lastInteractionMs = System.currentTimeMillis()
                             overlay = ActiveOverlay.UNSEEN
+                        },
+                        onOpenLayout = {
+                            lastInteractionMs = System.currentTimeMillis()
+                            overlay = ActiveOverlay.LAYOUT
                         },
                         onOpenSettings = {
                             lastInteractionMs = System.currentTimeMillis()
@@ -185,7 +214,26 @@ class MainActivity : ComponentActivity() {
                             scope.launch { VoxDockApi.dismissNote(settings, noteId) }
                         },
                         onOpenNotification = { item ->
-                            runCatching { item.contentIntent?.send() }
+                            val sent = runCatching {
+                                val pi = item.contentIntent ?: return@runCatching false
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                    val opts = android.app.ActivityOptions.makeBasic()
+                                        .setPendingIntentBackgroundActivityStartMode(
+                                            android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                                        ).toBundle()
+                                    pi.send(this@MainActivity, 0, null, null, null, null, opts)
+                                } else {
+                                    pi.send()
+                                }
+                                true
+                            }.getOrDefault(false)
+                            if (!sent) {
+                                runCatching {
+                                    packageManager.getLaunchIntentForPackage(item.packageName)
+                                        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        ?.let { startActivity(it) }
+                                }
+                            }
                         },
                         onDismissNotification = { key ->
                             NotificationStore.dismissAndCancel(key)

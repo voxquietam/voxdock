@@ -79,6 +79,14 @@ class NotificationCaptureService : NotificationListenerService() {
         if (previewLines.isEmpty() && text.isNotBlank()) {
             previewLines.add(text)
         }
+        // Deduplicate near-identical entries (e.g. Telegram photo caption + text duplicate)
+        val dedupedPreview = mutableListOf<String>()
+        for (line in previewLines) {
+            val norm = line.replace("🖼️", "").replace(Regex("\\s+"), " ").trim()
+            if (dedupedPreview.none { it.replace("🖼️", "").replace(Regex("\\s+"), " ").trim() == norm }) {
+                dedupedPreview.add(line)
+            }
+        }
 
         // Skip generic summary placeholders like "2 new messages" when there's no real content
         val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
@@ -91,7 +99,7 @@ class NotificationCaptureService : NotificationListenerService() {
             packageName = sbn.packageName,
             sender = title.ifBlank { source },
             text = text.ifBlank { title },
-            previewLines = previewLines,
+            previewLines = dedupedPreview,
             timestampMs = sbn.postTime,
             contentIntent = sbn.notification.contentIntent
         )

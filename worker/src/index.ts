@@ -1,7 +1,10 @@
 import { isAuthorized, jsonResponse } from "./auth";
 import { handleMcpRequest } from "./mcp";
+import { getActaTasks } from "./services/acta";
 import { getAlerts } from "./services/alerts";
+import { getCurrency } from "./services/currency";
 import { getPowerStatus, savePowerConfig } from "./services/power";
+import { getSensors } from "./services/sensors";
 import { getUnseen, refreshUnseen } from "./services/unseen";
 import { getWeather } from "./services/weather";
 import type { AgentStatus, Env, NoteItem, UnseenCategory } from "./types";
@@ -99,19 +102,26 @@ export default {
           )
         : undefined;
 
-      const [alerts, weather, unseen, power, notes, agentStatus] = await Promise.all([
-        getAlerts(env, oblastUid),
-        getWeather(env, lat, lon, city),
-        getUnseen(env, lat, lon, enabledUnseen),
-        getPowerStatus(env),
-        listActiveNotes(env.DB),
-        getAgentStatus(env.DB)
-      ]);
+      const [alerts, weather, currency, sensors, acta, unseen, power, notes, agentStatus] =
+        await Promise.all([
+          getAlerts(env, oblastUid),
+          getWeather(env, lat, lon, city),
+          getCurrency(env),
+          getSensors(env, lat, lon),
+          getActaTasks(env),
+          getUnseen(env, lat, lon, enabledUnseen),
+          getPowerStatus(env),
+          listActiveNotes(env.DB),
+          getAgentStatus(env.DB)
+        ]);
 
       return jsonResponse({
         serverTime: new Date().toISOString(),
         alerts,
         weather,
+        currency,
+        sensors,
+        acta,
         unseen,
         power,
         notes,

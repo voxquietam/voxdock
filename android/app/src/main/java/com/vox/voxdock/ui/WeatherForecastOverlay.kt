@@ -67,8 +67,8 @@ fun WeatherForecastOverlay(
             }
             Box(
                 modifier = Modifier
-                    .border(1.dp, p.border, RoundedCornerShape(10.dp))
-                    .background(p.card, RoundedCornerShape(10.dp))
+                    .border(1.dp, p.border, RoundedCornerShape(5.dp))
+                    .background(p.card, RoundedCornerShape(5.dp))
                     .clickable { onClose() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -90,8 +90,8 @@ fun WeatherForecastOverlay(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, p.border, RoundedCornerShape(14.dp))
-                        .background(p.card, RoundedCornerShape(14.dp))
+                        .border(1.dp, p.border, RoundedCornerShape(7.dp))
+                        .background(p.card, RoundedCornerShape(7.dp))
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically

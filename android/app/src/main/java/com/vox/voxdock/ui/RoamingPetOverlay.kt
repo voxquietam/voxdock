@@ -120,19 +120,39 @@ fun RoamingPetOverlay(
     var tick by remember { mutableIntStateOf(0) }
     var heartTicks by remember { mutableIntStateOf(0) }
     var resting by remember { mutableStateOf(false) }
+    var panicJumpPx by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(alertLevel) {
+        val rng = java.util.Random()
         while (true) {
-            delay(240L)
+            delay(if (alertLevel == "active") 130L else 240L)
             tick++
             if (heartTicks > 0) heartTicks--
 
             if (alertLevel == "active") {
-                posFraction = (posFraction - 0.035f).coerceAtLeast(0.02f)
-                facingRight = false
+                // Chaotic panic: fast dashes, random direction flips, frantic jumps across the bottom edge
+                resting = false
+                if (tick % (4 + rng.nextInt(5)) == 0) {
+                    facingRight = rng.nextBoolean()
+                }
+                val panicStep = 0.028f + rng.nextFloat() * 0.022f
+                val next = if (facingRight) posFraction + panicStep else posFraction - panicStep
+                when {
+                    next >= 0.88f -> {
+                        posFraction = 0.88f
+                        facingRight = false
+                    }
+                    next <= 0.06f -> {
+                        posFraction = 0.06f
+                        facingRight = true
+                    }
+                    else -> posFraction = next
+                }
+                panicJumpPx = if (tick % 2 == 0) -(8 + rng.nextInt(14)) else 0
                 continue
             }
 
+            panicJumpPx = 0
             if (tick % 36 == 0) resting = !resting
             if (!resting) {
                 val step = if (isPlayingMusic) 0.017f else 0.010f
@@ -142,8 +162,8 @@ fun RoamingPetOverlay(
                         posFraction = 0.90f
                         facingRight = false
                     }
-                    next <= 0.02f -> {
-                        posFraction = 0.02f
+                    next <= 0.06f -> {
+                        posFraction = 0.06f
                         facingRight = true
                     }
                     else -> posFraction = next
@@ -154,7 +174,7 @@ fun RoamingPetOverlay(
 
     // Frame index: 0 = walk A, 1 = walk B, 2 = sleep, 3 = alert
     val frameIdx = when {
-        alertLevel == "active" -> 3
+        alertLevel == "active" -> if (tick % 3 == 0) 3 else (tick % 2)
         resting && !isPlayingMusic -> 2
         tick % 2 == 0 -> 0
         else -> 1
@@ -163,11 +183,15 @@ fun RoamingPetOverlay(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp),
+            .height(50.dp),
         contentAlignment = Alignment.BottomStart
     ) {
         val travelPx = (constraints.maxWidth - 130).coerceAtLeast(0)
-        val bounceY = if (isPlayingMusic && tick % 2 == 0) -6 else 0
+        val bounceY = when {
+            alertLevel == "active" -> panicJumpPx
+            isPlayingMusic && tick % 2 == 0 -> -6
+            else -> 0
+        }
 
         Canvas(
             modifier = Modifier

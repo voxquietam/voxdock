@@ -9,7 +9,7 @@ crons = ["0 */2 * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "voxdock"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "2c541256-3790-47a9-8f50-3c312ef9d181"
 
 [vars]
 DEFAULT_LAT = "46.48"

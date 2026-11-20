@@ -46,24 +46,38 @@ class NotificationCaptureService : NotificationListenerService() {
         var text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
             ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()?.trim().orEmpty()
 
-        // Extract latest message from MessagingStyle / InboxStyle (used by Telegram groups & summaries)
-        if (text.isBlank()) {
-            val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
-            if (!lines.isNullOrEmpty()) {
-                text = lines.last().toString().trim()
-            }
-        }
-        if (text.isBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val previewLines = mutableListOf<String>()
+
+        // Collect all messages from MessagingStyle (unread history in Telegram without marking read)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             @Suppress("DEPRECATION")
             val msgs = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
-            val lastBundle = msgs?.lastOrNull() as? android.os.Bundle
-            val senderPrefix = lastBundle?.getCharSequence("sender")?.toString()?.trim().orEmpty()
-            val msgBody = lastBundle?.getCharSequence("text")?.toString()?.trim().orEmpty()
-            text = if (senderPrefix.isNotBlank() && msgBody.isNotBlank()) {
-                "$senderPrefix: $msgBody"
-            } else {
-                msgBody
+            msgs?.forEach { raw ->
+                val bundle = raw as? android.os.Bundle ?: return@forEach
+                val senderPrefix = bundle.getCharSequence("sender")?.toString()?.trim().orEmpty()
+                val msgBody = bundle.getCharSequence("text")?.toString()?.trim().orEmpty()
+                val formatted = if (senderPrefix.isNotBlank() && msgBody.isNotBlank()) {
+                    "$senderPrefix: $msgBody"
+                } else {
+                    msgBody
+                }
+                if (formatted.isNotBlank()) previewLines.add(formatted)
             }
+        }
+
+        if (previewLines.isEmpty()) {
+            val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            lines?.forEach { cs ->
+                val s = cs.toString().trim()
+                if (s.isNotBlank()) previewLines.add(s)
+            }
+        }
+
+        if (text.isBlank() && previewLines.isNotEmpty()) {
+            text = previewLines.last()
+        }
+        if (previewLines.isEmpty() && text.isNotBlank()) {
+            previewLines.add(text)
         }
 
         // Skip generic summary placeholders like "2 new messages" when there's no real content
@@ -77,6 +91,7 @@ class NotificationCaptureService : NotificationListenerService() {
             packageName = sbn.packageName,
             sender = title.ifBlank { source },
             text = text.ifBlank { title },
+            previewLines = previewLines,
             timestampMs = sbn.postTime,
             contentIntent = sbn.notification.contentIntent
         )

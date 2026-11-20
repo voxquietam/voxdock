@@ -72,6 +72,7 @@ fun DashboardScreen(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var activeSourceFilter by remember { mutableStateOf("ALL") }
     var unseenIndex by remember { mutableIntStateOf(0) }
+    var previewNotif by remember { mutableStateOf<CapturedNotification?>(null) }
 
     val filteredNotifs = remember(notifications, settings.mutedSources, activeSourceFilter) {
         notifications.filter { n ->
@@ -145,7 +146,7 @@ fun DashboardScreen(
                         activeFilter = activeSourceFilter,
                         mutedSources = settings.mutedSources,
                         onFilterChange = { activeSourceFilter = it },
-                        onOpen = onOpenNotification,
+                        onOpen = { previewNotif = it },
                         onDismiss = onDismissNotification,
                         onToggleMute = onToggleMuteSource,
                         modifier = Modifier.weight(1f).fillMaxWidth()
@@ -189,11 +190,110 @@ fun DashboardScreen(
                     activeFilter = activeSourceFilter,
                     mutedSources = settings.mutedSources,
                     onFilterChange = { activeSourceFilter = it },
-                    onOpen = onOpenNotification,
+                    onOpen = { previewNotif = it },
                     onDismiss = onDismissNotification,
                     onToggleMute = onToggleMuteSource,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
+            }
+        }
+
+        // Silent message preview popup (read without opening TG / marking as read)
+        previewNotif?.let { item ->
+            NotificationPreviewDialog(
+                item = item,
+                onOpenApp = {
+                    previewNotif = null
+                    onOpenNotification(item)
+                },
+                onDismiss = {
+                    previewNotif = null
+                    onDismissNotification(item.key)
+                },
+                onClose = { previewNotif = null }
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotificationPreviewDialog(
+    item: CapturedNotification,
+    onOpenApp: () -> Unit,
+    onDismiss: () -> Unit,
+    onClose: () -> Unit
+) {
+    val p = LocalVoxPalette.current
+    val timeStr = remember(item.timestampMs) {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.timestampMs))
+    }
+    val lines = item.previewLines.ifEmpty { listOf(item.text) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.65f))
+            .clickable { onClose() }
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .border(1.dp, sourceColor(item.source).copy(alpha = 0.7f), RoundedCornerShape(20.dp))
+                .background(p.card, RoundedCornerShape(20.dp))
+                .clickable(enabled = false) {}
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${item.source} · ${item.sender}",
+                    color = sourceColor(item.source),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "$timeStr · UNREAD PREVIEW",
+                    color = p.muted,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 220.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                lines.forEach { line ->
+                    Text(
+                        text = line,
+                        color = p.text,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                SmallPill(label = "CLOSE", highlighted = false, onClick = onClose)
+                SmallPill(label = "DISMISS", highlighted = false, onClick = onDismiss)
+                SmallPill(label = "OPEN CHAT ↗", highlighted = true, onClick = onOpenApp)
             }
         }
     }

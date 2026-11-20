@@ -11,6 +11,7 @@ data class CapturedNotification(
     val packageName: String,
     val sender: String,
     val text: String,
+    val previewLines: List<String> = emptyList(),
     val timestampMs: Long,
     val contentIntent: PendingIntent?
 )

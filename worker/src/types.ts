@@ -18,7 +18,7 @@ export interface OblastAlert {
 }
 
 export interface AlertsPayload {
-  source: "alerts.in.ua" | "unconfigured";
+  source: "alerts.in.ua" | "ubilling" | "unconfigured";
   updatedAt: string;
   selectedUid: number;
   selected: OblastAlert;

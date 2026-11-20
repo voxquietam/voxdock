@@ -17,6 +17,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.vox.voxdock.data.AppSettings
+import com.vox.voxdock.data.AppUpdater
 import com.vox.voxdock.data.DashboardResponse
 import com.vox.voxdock.data.SettingsStore
 import com.vox.voxdock.data.VoxDockApi
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
 
             var dashboard by remember { mutableStateOf(DashboardResponse()) }
             var syncError by remember { mutableStateOf<String?>(null) }
+            var updateProgress by remember { mutableStateOf<Int?>(null) }
             var overlay by remember { mutableStateOf(ActiveOverlay.NONE) }
             var lastInteractionMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
             var dimmed by remember { mutableStateOf(false) }
@@ -176,40 +178,66 @@ class MainActivity : ComponentActivity() {
                         },
                         onClose = { overlay = ActiveOverlay.NONE }
                     )
-                    ActiveOverlay.NONE -> DashboardScreen(
-                        dashboard = dashboard,
-                        settings = settings.copy(dockMode = effectiveDock),
-                        notifications = notifications,
-                        nowPlaying = nowPlaying,
-                        syncError = syncError,
-                        isNightOled = nightOled,
-                        onToggleTheme = { settingsStore.update { it.copy(darkTheme = !it.darkTheme) } },
-                        onToggleDock = { settingsStore.update { it.copy(dockMode = !it.dockMode) } },
-                        onOpenMap = {
-                            lastInteractionMs = System.currentTimeMillis()
-                            overlay = ActiveOverlay.MAP
-                        },
-                        onOpenWeather = {
-                            lastInteractionMs = System.currentTimeMillis()
-                            overlay = ActiveOverlay.WEATHER
-                        },
-                        onOpenPower = {
-                            lastInteractionMs = System.currentTimeMillis()
-                            overlay = ActiveOverlay.POWER
-                        },
-                        onOpenUnseen = {
-                            lastInteractionMs = System.currentTimeMillis()
-                            overlay = ActiveOverlay.UNSEEN
-                        },
-                        onOpenLayout = {
-                            lastInteractionMs = System.currentTimeMillis()
-                            overlay = ActiveOverlay.LAYOUT
-                        },
-                        onOpenSettings = {
-                            lastInteractionMs = System.currentTimeMillis()
-                            overlay = ActiveOverlay.SETTINGS
-                        },
-                        onDismissNote = { noteId ->
+                    ActiveOverlay.NONE -> {
+                        val availableUpdate = dashboard.update?.takeIf {
+                            AppUpdater.isNewer(it.version, BuildConfig.VERSION_NAME)
+                        }
+                        DashboardScreen(
+                            dashboard = dashboard,
+                            settings = settings.copy(dockMode = effectiveDock),
+                            notifications = notifications,
+                            nowPlaying = nowPlaying,
+                            syncError = syncError,
+                            updateAvailable = availableUpdate,
+                            updateProgress = updateProgress,
+                            isNightOled = nightOled,
+                            onToggleTheme = { settingsStore.update { it.copy(darkTheme = !it.darkTheme) } },
+                            onToggleDock = { settingsStore.update { it.copy(dockMode = !it.dockMode) } },
+                            onOpenMap = {
+                                lastInteractionMs = System.currentTimeMillis()
+                                overlay = ActiveOverlay.MAP
+                            },
+                            onOpenWeather = {
+                                lastInteractionMs = System.currentTimeMillis()
+                                overlay = ActiveOverlay.WEATHER
+                            },
+                            onOpenPower = {
+                                lastInteractionMs = System.currentTimeMillis()
+                                overlay = ActiveOverlay.POWER
+                            },
+                            onOpenUnseen = {
+                                lastInteractionMs = System.currentTimeMillis()
+                                overlay = ActiveOverlay.UNSEEN
+                            },
+                            onOpenLayout = {
+                                lastInteractionMs = System.currentTimeMillis()
+                                overlay = ActiveOverlay.LAYOUT
+                            },
+                            onOpenSettings = {
+                                lastInteractionMs = System.currentTimeMillis()
+                                overlay = ActiveOverlay.SETTINGS
+                            },
+                            onTriggerUpdate = {
+                                val target = availableUpdate ?: return@DashboardScreen
+                                if (updateProgress != null) return@DashboardScreen
+                                updateProgress = 0
+                                scope.launch {
+                                    val res = AppUpdater.downloadAndInstall(
+                                        context = this@MainActivity,
+                                        apkUrl = target.apkUrl,
+                                        onProgress = { pct -> updateProgress = pct }
+                                    )
+                                    updateProgress = null
+                                    res.onFailure { err ->
+                                        android.widget.Toast.makeText(
+                                            this@MainActivity,
+                                            err.message ?: "Update failed",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            onDismissNote = { noteId ->
                             dashboard = dashboard.copy(notes = dashboard.notes.filterNot { it.id == noteId })
                             scope.launch { VoxDockApi.dismissNote(settings, noteId) }
                         },
@@ -250,6 +278,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onWakeInteraction = { lastInteractionMs = System.currentTimeMillis() }
                     )
+                    }
                 }
             }
         }

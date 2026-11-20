@@ -132,3 +132,10 @@ export interface AgentStatus {
   source: string;
   updatedAt: string;
 }
+
+export interface UpdatePayload {
+  version: string;
+  apkUrl: string;
+  notes: string;
+  publishedAt: string;
+}

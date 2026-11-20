@@ -13,7 +13,16 @@ data class DashboardResponse(
     val unseen: List<UnseenFinding> = emptyList(),
     val power: PowerPayload = PowerPayload(),
     val notes: List<NoteItem> = emptyList(),
-    val agentStatus: AgentStatus = AgentStatus()
+    val agentStatus: AgentStatus = AgentStatus(),
+    val update: UpdatePayload? = null
+)
+
+@Serializable
+data class UpdatePayload(
+    val version: String = "",
+    val apkUrl: String = "",
+    val notes: String = "",
+    val publishedAt: String = ""
 )
 
 @Serializable

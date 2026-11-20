@@ -6,6 +6,7 @@ import { getCurrency } from "./services/currency";
 import { getPowerStatus, savePowerConfig } from "./services/power";
 import { getSensors } from "./services/sensors";
 import { getUnseen, refreshUnseen } from "./services/unseen";
+import { getLatestUpdate } from "./services/update";
 import { getWeather } from "./services/weather";
 import type { AgentStatus, Env, NoteItem, UnseenCategory } from "./types";
 
@@ -102,7 +103,7 @@ export default {
           )
         : undefined;
 
-      const [alerts, weather, currency, sensors, acta, unseen, power, notes, agentStatus] =
+      const [alerts, weather, currency, sensors, acta, unseen, power, notes, agentStatus, update] =
         await Promise.all([
           getAlerts(env, oblastUid),
           getWeather(env, lat, lon, city),
@@ -112,7 +113,8 @@ export default {
           getUnseen(env, lat, lon, enabledUnseen),
           getPowerStatus(env),
           listActiveNotes(env.DB),
-          getAgentStatus(env.DB)
+          getAgentStatus(env.DB),
+          getLatestUpdate(env)
         ]);
 
       return jsonResponse({
@@ -125,7 +127,8 @@ export default {
         unseen,
         power,
         notes,
-        agentStatus
+        agentStatus,
+        update
       });
     }
 

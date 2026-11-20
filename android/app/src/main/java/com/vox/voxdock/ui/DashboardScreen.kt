@@ -45,6 +45,8 @@ fun DashboardScreen(
     notifications: List<CapturedNotification>,
     nowPlaying: NowPlayingState,
     syncError: String?,
+    updateAvailable: UpdatePayload?,
+    updateProgress: Int?,
     isNightOled: Boolean,
     onToggleTheme: () -> Unit,
     onToggleDock: () -> Unit,
@@ -54,6 +56,7 @@ fun DashboardScreen(
     onOpenUnseen: () -> Unit,
     onOpenLayout: () -> Unit,
     onOpenSettings: () -> Unit,
+    onTriggerUpdate: () -> Unit,
     onDismissNote: (Int) -> Unit,
     onOpenNotification: (CapturedNotification) -> Unit,
     onDismissNotification: (String) -> Unit,
@@ -137,10 +140,13 @@ fun DashboardScreen(
                                 city = settings.city,
                                 settings = settings,
                                 syncError = syncError,
+                                updateAvailable = updateAvailable,
+                                updateProgress = updateProgress,
                                 onToggleDock = onToggleDock,
                                 onToggleTheme = onToggleTheme,
                                 onOpenLayout = onOpenLayout,
-                                onOpenSettings = onOpenSettings
+                                onOpenSettings = onOpenSettings,
+                                onTriggerUpdate = onTriggerUpdate
                             )
                             TileKind.ALERT -> AlertTile(
                                 dashboard = dashboard,
@@ -239,10 +245,13 @@ private fun ClockTile(
     city: String,
     settings: AppSettings,
     syncError: String?,
+    updateAvailable: UpdatePayload?,
+    updateProgress: Int?,
     onToggleDock: () -> Unit,
     onToggleTheme: () -> Unit,
     onOpenLayout: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onTriggerUpdate: () -> Unit
 ) {
     val p = LocalVoxPalette.current
     Row(
@@ -280,6 +289,10 @@ private fun ClockTile(
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (updateAvailable != null) {
+                val label = if (updateProgress != null) "↓$updateProgress%" else "↑${updateAvailable.version}"
+                SmallPill(label = label, highlighted = true, onClick = onTriggerUpdate)
+            }
             SmallPill(label = if (settings.dockMode) "☾ ON" else "☾", highlighted = settings.dockMode, onClick = onToggleDock)
             SmallPill(label = if (settings.darkTheme) "☀" else "☾", highlighted = false, onClick = onToggleTheme)
             SmallPill(label = "⊞", highlighted = false, onClick = onOpenLayout)

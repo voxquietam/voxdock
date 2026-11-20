@@ -1,12 +1,14 @@
 package com.vox.voxdock
 
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
 import android.os.BatteryManager
 import android.os.Bundle
+import android.service.notification.NotificationListenerService
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -47,6 +49,12 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         settingsStore = SettingsStore(this)
         registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        // Ensure NotificationCaptureService rebinds automatically after APK updates
+        runCatching {
+            NotificationListenerService.requestRebind(
+                ComponentName(this, com.vox.voxdock.notifications.NotificationCaptureService::class.java)
+            )
+        }
 
         setContent {
             val settings by settingsStore.state.collectAsState()

@@ -1,6 +1,7 @@
 package com.vox.voxdock.notifications
 
 import android.app.Notification
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 
@@ -11,8 +12,7 @@ class NotificationCaptureService : NotificationListenerService() {
         NotificationStore.cancelCallback = { key ->
             runCatching { cancelNotification(key) }
         }
-        val active = runCatching { activeNotifications?.toList().orEmpty() }.getOrDefault(emptyList())
-        NotificationStore.replaceAll(active.mapNotNull { toCaptured(it) })
+        refreshActive()
     }
 
     override fun onListenerDisconnected() {
@@ -28,15 +28,36 @@ class NotificationCaptureService : NotificationListenerService() {
         NotificationStore.removeByKey(sbn.key)
     }
 
+    private fun refreshActive() {
+        val active = runCatching { activeNotifications?.toList().orEmpty() }.getOrDefault(emptyList())
+        NotificationStore.replaceAll(active.mapNotNull { toCaptured(it) })
+    }
+
     private fun toCaptured(sbn: StatusBarNotification): CapturedNotification? {
         if (sbn.packageName == packageName) return null
         if (sbn.isOngoing) return null
+        // Skip empty group summary containers that duplicate individual chat notifications
+        if ((sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return null
 
         val source = classifySource(sbn.packageName, sbn.notification) ?: return null
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
-        val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+        var text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
             ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()?.trim().orEmpty()
+
+        // Handle MessagingStyle / InboxStyle group chats where text sits in textLines
+        if (text.isBlank()) {
+            val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            if (!lines.isNullOrEmpty()) {
+                text = lines.last().toString().trim()
+            }
+        }
+        if (text.isBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("DEPRECATION")
+            val msgs = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+            val lastBundle = msgs?.lastOrNull() as? android.os.Bundle
+            text = lastBundle?.getCharSequence("text")?.toString()?.trim().orEmpty()
+        }
 
         if (title.isBlank() && text.isBlank()) return null
 
@@ -59,7 +80,13 @@ class NotificationCaptureService : NotificationListenerService() {
             ?.toString()?.lowercase().orEmpty()
 
         return when {
-            lower.contains("telegram") || lower.contains("ayugram") || lower.contains("nekogram") -> "TG"
+            lower.contains("telegram") ||
+                lower.contains("challegram") ||
+                lower.contains("ayugram") ||
+                lower.contains("nekogram") ||
+                lower.contains("exteragram") ||
+                lower.contains("forkgram") ||
+                lower.contains("kotatogram") -> "TG"
             lower.contains("zoom") -> "ZOOM"
             lower.contains("ksu24") || title.contains("ksu24") || text.contains("ksu24") -> "KSU24"
             else -> null

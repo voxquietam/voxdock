@@ -7,8 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -91,24 +93,29 @@ fun DashboardScreen(
         if (isLandscape) {
             Row(
                 modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // LEFT COLUMN (Status & Context)
+                // LEFT COLUMN (Status & Context) — compact + scrollable so nothing clips with status bar
                 Column(
-                    modifier = Modifier.weight(5f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .weight(5f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     HeaderBar(
                         clockText = clockText,
                         city = settings.city,
                         settings = settings,
                         syncError = syncError,
+                        compact = true,
                         onToggleDock = onToggleDock,
                         onToggleTheme = onToggleTheme,
                         onOpenSettings = onOpenSettings
                     )
                     AlertAndWeatherRow(
                         dashboard = dashboard,
+                        compact = true,
                         onOpenMap = onOpenMap,
                         onOpenWeather = onOpenWeather
                     )
@@ -116,6 +123,7 @@ fun DashboardScreen(
                     UnseenTile(
                         dashboard = dashboard,
                         index = unseenIndex,
+                        compact = true,
                         onNext = {
                             if (dashboard.unseen.isNotEmpty()) {
                                 unseenIndex = (unseenIndex + 1) % dashboard.unseen.size
@@ -128,7 +136,7 @@ fun DashboardScreen(
                 // RIGHT COLUMN (Live Stream: MCP + Notifications)
                 Column(
                     modifier = Modifier.weight(7f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     McpNotesCard(
                         dashboard = dashboard,
@@ -243,6 +251,7 @@ private fun HeaderBar(
     city: String,
     settings: AppSettings,
     syncError: String?,
+    compact: Boolean = false,
     onToggleDock: () -> Unit,
     onToggleTheme: () -> Unit,
     onOpenSettings: () -> Unit
@@ -265,7 +274,7 @@ private fun HeaderBar(
                     text = "VOXDOCK // ${city.uppercase()}",
                     color = p.muted,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
+                    fontSize = 9.sp
                 )
             }
             Text(
@@ -273,7 +282,7 @@ private fun HeaderBar(
                 color = p.text,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 30.sp
+                fontSize = if (compact) 23.sp else 30.sp
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -315,6 +324,7 @@ private fun SmallPill(label: String, highlighted: Boolean, onClick: () -> Unit) 
 @Composable
 private fun AlertAndWeatherRow(
     dashboard: DashboardResponse,
+    compact: Boolean = false,
     onOpenMap: () -> Unit,
     onOpenWeather: () -> Unit
 ) {
@@ -325,6 +335,7 @@ private fun AlertAndWeatherRow(
         "partial" -> Quad(p.alertPartialBg, p.alertPartialBorder, p.alertPartialText, "PARTIAL ⚠")
         else -> Quad(p.alertNoneBg, p.alertNoneBorder, p.alertNoneText, "CLEAR ✓")
     }
+    val pad = if (compact) 8.dp else 10.dp
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -334,10 +345,10 @@ private fun AlertAndWeatherRow(
         Column(
             modifier = Modifier
                 .weight(3f)
-                .border(1.dp, border, RoundedCornerShape(16.dp))
-                .background(bg, RoundedCornerShape(16.dp))
+                .border(1.dp, border, RoundedCornerShape(14.dp))
+                .background(bg, RoundedCornerShape(14.dp))
                 .clickable { onOpenMap() }
-                .padding(10.dp)
+                .padding(pad)
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("AIR RAID", color = txt.copy(alpha = 0.75f), fontFamily = FontFamily.Monospace, fontSize = 9.sp)
@@ -352,10 +363,10 @@ private fun AlertAndWeatherRow(
         Column(
             modifier = Modifier
                 .weight(2f)
-                .border(1.dp, p.weatherBorder.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
-                .background(p.weatherBg, RoundedCornerShape(16.dp))
+                .border(1.dp, p.weatherBorder.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                .background(p.weatherBg, RoundedCornerShape(14.dp))
                 .clickable { onOpenWeather() }
-                .padding(10.dp)
+                .padding(pad)
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(weatherIcon(cur.weatherCode), fontSize = 14.sp)
@@ -413,6 +424,7 @@ private fun PowerStrip(dashboard: DashboardResponse, onOpenSettings: () -> Unit)
 private fun UnseenTile(
     dashboard: DashboardResponse,
     index: Int,
+    compact: Boolean = false,
     onNext: () -> Unit
 ) {
     val p = LocalVoxPalette.current
@@ -421,10 +433,10 @@ private fun UnseenTile(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, p.unseenBorder.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-            .background(p.unseenBg, RoundedCornerShape(16.dp))
+            .border(1.dp, p.unseenBorder.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+            .background(p.unseenBg, RoundedCornerShape(14.dp))
             .clickable { onNext() }
-            .padding(10.dp)
+            .padding(if (compact) 8.dp else 10.dp)
     ) {
         if (item == null) {
             Text("◈ UNSEEN · QUIET", color = p.muted, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
@@ -435,8 +447,8 @@ private fun UnseenTile(
                 Text("score ${"%.1f".format(item.score)} ↻", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
             }
             Text(item.title, color = p.text, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(item.explanation, color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(6.dp))
+            Text(item.explanation, color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 10.sp, maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(if (compact) 4.dp else 6.dp))
             val frac = (item.score / 3.0).toFloat().coerceIn(0.08f, 1f)
             Box(
                 modifier = Modifier

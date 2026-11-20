@@ -140,6 +140,11 @@ fun DashboardScreen(
     var selectedKind by remember { mutableStateOf<TileKind?>(null) }
     var addTargetCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
+    // Clear tile selection when swiping between pages in Edit Mode
+    LaunchedEffect(pagerState.currentPage) {
+        selectedKind = null
+    }
+
     val filteredNotifs = remember(notifications, settings.mutedSources, activeSourceFilter) {
         notifications.filter { n ->
             !settings.mutedSources.contains(n.source) &&
@@ -157,21 +162,15 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(p.bg)
     ) {
-        // Subtle 3dp left-edge air raid status strip in landscape (clean, zero clutter)
+        // Reimagined Bento capsules in the left camera bezel area (landscape only)
         if (isLandscape) {
-            val alertStripColor = when (dashboard.alerts.selected.level) {
-                "active" -> Color(0xFFEF4444)
-                "partial" -> Color(0xFFF59E0B)
-                else -> Color(0xFF22C55E).copy(alpha = 0.55f)
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 3.dp)
-                    .fillMaxHeight(0.84f)
-                    .width(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(alertStripColor)
+            LeftBezelDock(
+                batteryPct = batteryPct,
+                isCharging = isCharging,
+                alertLevel = dashboard.alerts.selected.level,
+                isPlayingMusic = nowPlaying.isPlaying,
+                hasMediaSession = nowPlaying.hasSession,
+                modifier = Modifier.align(Alignment.CenterStart)
             )
         }
 
@@ -300,10 +299,10 @@ fun DashboardScreen(
                 }
             }
 
-            // Swipeable full-height 2D Bento screens
+            // Swipeable full-height 2D Bento screens (swiping works in Edit Mode too!)
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = !editMode,
+                userScrollEnabled = true,
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) { pageIndex ->
                 val page = pages.getOrNull(pageIndex) ?: return@HorizontalPager

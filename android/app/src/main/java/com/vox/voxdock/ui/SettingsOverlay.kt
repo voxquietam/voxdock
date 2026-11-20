@@ -49,6 +49,7 @@ fun SettingsOverlay(
     var autoDock by remember { mutableStateOf(settings.autoDockOnCharge) }
     var nightOled by remember { mutableStateOf(settings.nightOledEnabled) }
     var petEnabled by remember { mutableStateOf(settings.petEnabled) }
+    var petType by remember { mutableStateOf(settings.petType) }
     var enabledUnseen by remember { mutableStateOf(settings.enabledUnseen) }
 
     Column(
@@ -97,6 +98,7 @@ fun SettingsOverlay(
                                     autoDockOnCharge = autoDock,
                                     nightOledEnabled = nightOled,
                                     petEnabled = petEnabled,
+                                    petType = petType,
                                     enabledUnseen = enabledUnseen
                                 )
                             )
@@ -223,8 +225,27 @@ fun SettingsOverlay(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Roaming mini pet along bottom edge", color = p.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            Text("Roaming pixel pet along bottom edge", color = p.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             Switch(checked = petEnabled, onCheckedChange = { petEnabled = it })
+        }
+        if (petEnabled) {
+            Text("SELECT PIXEL PET", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                PET_CATALOG.take(3).forEach { (key, label) ->
+                    SmallPill(label = label, highlighted = petType == key, onClick = { petType = key })
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                PET_CATALOG.drop(3).forEach { (key, label) ->
+                    SmallPill(label = label, highlighted = petType == key, onClick = { petType = key })
+                }
+            }
         }
 
         // Notification access button

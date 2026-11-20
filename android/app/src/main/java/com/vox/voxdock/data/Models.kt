@@ -235,6 +235,7 @@ data class AppSettings(
     val autoDockOnCharge: Boolean = true,
     val nightOledEnabled: Boolean = true,
     val petEnabled: Boolean = true,
+    val petType: String = "fox",
     val quietStartHour: Int = 23,
     val quietEndHour: Int = 7,
     val city: String = "Odesa",

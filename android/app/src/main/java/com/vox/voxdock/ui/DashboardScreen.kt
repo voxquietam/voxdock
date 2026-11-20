@@ -96,8 +96,9 @@ fun DashboardScreen(
     var activeSourceFilter by remember { mutableStateOf("ALL") }
     var previewNotif by remember { mutableStateOf<CapturedNotification?>(null) }
 
-    // Direct in-place Edit Mode (triggered by long-pressing any tile)
+    // Direct in-place Edit Mode (triggered by long-pressing any tile or tapping ⊞)
     var editMode by remember { mutableStateOf(false) }
+    var selectedTileKind by remember { mutableStateOf<TileKind?>(null) }
     var showAddTilePicker by remember { mutableStateOf(false) }
 
     val filteredNotifs = remember(notifications, settings.mutedSources, activeSourceFilter) {
@@ -131,6 +132,11 @@ fun DashboardScreen(
             // Compact in-place Edit Mode toolbar (only visible while editing)
             if (editMode) {
                 val curIdx = pagerState.currentPage.coerceIn(0, pages.lastIndex)
+                val hint = if (selectedTileKind != null) {
+                    "SELECTED: ${selectedTileKind!!.title.uppercase()} · TAP ANOTHER TO SWAP"
+                } else {
+                    "TAP TILE TO SELECT/SWAP · USE ◀ ▶ ↔ ✕"
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -142,7 +148,7 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "EDIT · DRAG TO MOVE · EDGE ⋮ TO RESIZE",
+                        text = hint,
                         color = Color(0xFF818CF8),
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -165,15 +171,19 @@ fun DashboardScreen(
                         }
                         if (pages.size > 1) {
                             SmallPill("DEL PG", false) {
+                                selectedTileKind = null
                                 onUpdatePages(pages.filterIndexed { i, _ -> i != curIdx })
                             }
                         }
-                        SmallPill("DONE", true) { editMode = false }
+                        SmallPill("DONE", true) {
+                            editMode = false
+                            selectedTileKind = null
+                        }
                     }
                 }
             }
 
-            // Swipeable screens (disable swipe while dragging tiles in editMode)
+            // Swipeable screens
             HorizontalPager(
                 state = pagerState,
                 userScrollEnabled = !editMode,
@@ -187,7 +197,7 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(top = 2.dp, bottom = 8.dp)
+                    contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp)
                 ) {
                     itemsIndexed(
                         items = page.tiles,
@@ -197,71 +207,51 @@ fun DashboardScreen(
                             GridItemSpan(clamped.coerceAtMost(cols))
                         }
                     ) { tileIdx, tile ->
-                        var dragX by remember(tile.kind) { mutableFloatStateOf(0f) }
-                        var dragY by remember(tile.kind) { mutableFloatStateOf(0f) }
-                        var isDragging by remember(tile.kind) { mutableStateOf(false) }
-                        var resizeAccum by remember(tile.kind) { mutableFloatStateOf(0f) }
+                        val isSelected = editMode && selectedTileKind == tile.kind
                         val canResize = tile.kind.minSpan != tile.kind.maxSpan
 
                         Box(
                             modifier = Modifier
-                                .zIndex(if (isDragging) 10f else 0f)
-                                .graphicsLayer {
-                                    translationX = dragX
-                                    translationY = dragY
-                                    scaleX = if (isDragging) 1.03f else 1f
-                                    scaleY = if (isDragging) 1.03f else 1f
-                                    alpha = if (isDragging) 0.92f else 1f
-                                }
+                                .animateItem()
                                 .then(
                                     if (editMode) {
                                         Modifier
-                                            .border(1.5.dp, Color(0xFF6366F1).copy(alpha = 0.85f), RoundedCornerShape(7.dp))
-                                            .pointerInput(page.tiles, tileIdx) {
-                                                detectDragGestures(
-                                                    onDragStart = { isDragging = true },
-                                                    onDragEnd = {
-                                                        isDragging = false
-                                                        dragX = 0f
-                                                        dragY = 0f
-                                                    },
-                                                    onDragCancel = {
-                                                        isDragging = false
-                                                        dragX = 0f
-                                                        dragY = 0f
-                                                    },
-                                                    onDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        dragX += dragAmount.x
-                                                        dragY += dragAmount.y
-                                                        val thresholdX = 90f
-                                                        val thresholdY = 75f
-                                                        val targetIdx = when {
-                                                            dragX > thresholdX -> (tileIdx + 1).coerceAtMost(page.tiles.lastIndex)
-                                                            dragX < -thresholdX -> (tileIdx - 1).coerceAtLeast(0)
-                                                            dragY > thresholdY -> (tileIdx + 2).coerceAtMost(page.tiles.lastIndex)
-                                                            dragY < -thresholdY -> (tileIdx - 2).coerceAtLeast(0)
-                                                            else -> tileIdx
+                                            .border(
+                                                width = if (isSelected) 2.dp else 1.dp,
+                                                color = if (isSelected) Color(0xFF22C55E) else Color(0xFF6366F1).copy(alpha = 0.7f),
+                                                shape = RoundedCornerShape(7.dp)
+                                            )
+                                            .clickable {
+                                                val prev = selectedTileKind
+                                                if (prev == null) {
+                                                    selectedTileKind = tile.kind
+                                                } else if (prev == tile.kind) {
+                                                    selectedTileKind = null
+                                                } else {
+                                                    // Swap prev tile with tapped tile smoothly
+                                                    mutatePage(pageIndex) { pg ->
+                                                        val list = pg.tiles.toMutableList()
+                                                        val i1 = list.indexOfFirst { it.kind == prev }
+                                                        val i2 = list.indexOfFirst { it.kind == tile.kind }
+                                                        if (i1 >= 0 && i2 >= 0) {
+                                                            val tmp = list[i1]
+                                                            list[i1] = list[i2]
+                                                            list[i2] = tmp
                                                         }
-                                                        if (targetIdx != tileIdx) {
-                                                            dragX = 0f
-                                                            dragY = 0f
-                                                            mutatePage(pageIndex) { pg ->
-                                                                val list = pg.tiles.toMutableList()
-                                                                val moved = list.removeAt(tileIdx)
-                                                                list.add(targetIdx, moved)
-                                                                pg.copy(tiles = list)
-                                                            }
-                                                        }
+                                                        pg.copy(tiles = list)
                                                     }
-                                                )
+                                                    selectedTileKind = null
+                                                }
                                             }
                                     } else {
                                         Modifier.combinedClickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                             onClick = { onWakeInteraction() },
-                                            onLongClick = { editMode = true }
+                                            onLongClick = {
+                                                editMode = true
+                                                selectedTileKind = tile.kind
+                                            }
                                         )
                                     }
                                 )
@@ -276,7 +266,10 @@ fun DashboardScreen(
                                     updateProgress = updateProgress,
                                     onToggleDock = onToggleDock,
                                     onToggleTheme = onToggleTheme,
-                                    onToggleEdit = { editMode = !editMode },
+                                    onToggleEdit = {
+                                        editMode = !editMode
+                                        if (!editMode) selectedTileKind = null
+                                    },
                                     onOpenSettings = onOpenSettings,
                                     onTriggerUpdate = onTriggerUpdate
                                 )
@@ -320,66 +313,60 @@ fun DashboardScreen(
                                 )
                             }
 
-                            // Edit Mode overlays: remove (top-right) & drag-to-resize handle (right edge)
+                            // Clean non-overlapping Edit Mode bar pinned to top-end of each tile
                             if (editMode) {
-                                Box(
+                                Row(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .padding(4.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFFEF4444))
-                                        .clickable {
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(Color(0xE6111118))
+                                        .border(1.dp, Color(0xFF6366F1).copy(alpha = 0.6f), RoundedCornerShape(5.dp))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (tileIdx > 0) {
+                                        EditChip("◀") {
                                             mutatePage(pageIndex) { pg ->
-                                                pg.copy(tiles = pg.tiles.filterIndexed { i, _ -> i != tileIdx })
+                                                val list = pg.tiles.toMutableList()
+                                                val tmp = list[tileIdx - 1]
+                                                list[tileIdx - 1] = list[tileIdx]
+                                                list[tileIdx] = tmp
+                                                pg.copy(tiles = list)
                                             }
                                         }
-                                        .padding(horizontal = 5.dp, vertical = 1.dp)
-                                ) {
-                                    Text("✕", color = Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                }
-
-                                if (canResize) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.CenterEnd)
-                                            .fillMaxHeight()
-                                            .width(20.dp)
-                                            .background(Color(0xFF6366F1).copy(alpha = 0.25f), RoundedCornerShape(topEnd = 7.dp, bottomEnd = 7.dp))
-                                            .pointerInput(tile.span, tileIdx) {
-                                                detectHorizontalDragGestures(
-                                                    onDragEnd = { resizeAccum = 0f },
-                                                    onHorizontalDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        resizeAccum += dragAmount
-                                                        if (resizeAccum > 55f) {
-                                                            resizeAccum = 0f
-                                                            val next = (if (tile.span == 2) 4 else tile.span + 1)
-                                                                .coerceAtMost(tile.kind.maxSpan)
-                                                            if (next != tile.span) {
-                                                                mutatePage(pageIndex) { pg ->
-                                                                    pg.copy(tiles = pg.tiles.mapIndexed { i, t ->
-                                                                        if (i == tileIdx) t.copy(span = next) else t
-                                                                    })
-                                                                }
-                                                            }
-                                                        } else if (resizeAccum < -55f) {
-                                                            resizeAccum = 0f
-                                                            val next = (if (tile.span == 4) 2 else tile.span - 1)
-                                                                .coerceAtLeast(tile.kind.minSpan)
-                                                            if (next != tile.span) {
-                                                                mutatePage(pageIndex) { pg ->
-                                                                    pg.copy(tiles = pg.tiles.mapIndexed { i, t ->
-                                                                        if (i == tileIdx) t.copy(span = next) else t
-                                                                    })
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                )
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("⋮", color = Color(0xFFA5B4FC), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+                                    if (tileIdx < page.tiles.lastIndex) {
+                                        EditChip("▶") {
+                                            mutatePage(pageIndex) { pg ->
+                                                val list = pg.tiles.toMutableList()
+                                                val tmp = list[tileIdx + 1]
+                                                list[tileIdx + 1] = list[tileIdx]
+                                                list[tileIdx] = tmp
+                                                pg.copy(tiles = list)
+                                            }
+                                        }
+                                    }
+                                    if (canResize) {
+                                        EditChip("↔${tile.span}") {
+                                            val nextSpan = when {
+                                                tile.span >= tile.kind.maxSpan -> tile.kind.minSpan
+                                                tile.span == 1 -> 2.coerceAtMost(tile.kind.maxSpan)
+                                                else -> 4.coerceAtMost(tile.kind.maxSpan)
+                                            }
+                                            mutatePage(pageIndex) { pg ->
+                                                pg.copy(tiles = pg.tiles.mapIndexed { i, t ->
+                                                    if (i == tileIdx) t.copy(span = nextSpan) else t
+                                                })
+                                            }
+                                        }
+                                    }
+                                    EditChip("✕", Color(0xFFEF4444)) {
+                                        if (selectedTileKind == tile.kind) selectedTileKind = null
+                                        mutatePage(pageIndex) { pg ->
+                                            pg.copy(tiles = pg.tiles.filterIndexed { i, _ -> i != tileIdx })
+                                        }
                                     }
                                 }
                             }
@@ -413,6 +400,7 @@ fun DashboardScreen(
         // Pixel-art pet floating along the very bottom edge (0dp taken from grid height!)
         if (settings.petEnabled) {
             RoamingPetOverlay(
+                petType = settings.petType,
                 alertLevel = dashboard.alerts.selected.level,
                 powerStatus = dashboard.power.status,
                 isPlayingMusic = nowPlaying.isPlaying,
@@ -1104,6 +1092,25 @@ private fun NightOledScreen(clockText: String, alertLevel: String, onWake: () ->
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun EditChip(label: String, tint: Color = Color(0xFFE4E4E7), onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFF272735))
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = label,
+            color = tint,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 9.sp
+        )
     }
 }
 

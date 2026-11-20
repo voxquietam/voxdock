@@ -33,6 +33,7 @@ class SettingsStore(context: Context) {
             autoDockOnCharge = prefs.getBoolean("autoDockOnCharge", true),
             nightOledEnabled = prefs.getBoolean("nightOledEnabled", true),
             petEnabled = prefs.getBoolean("petEnabled", true),
+            petType = prefs.getString("petType", "fox") ?: "fox",
             quietStartHour = prefs.getInt("quietStartHour", 23),
             quietEndHour = prefs.getInt("quietEndHour", 7),
             city = prefs.getString("city", "Odesa") ?: "Odesa",
@@ -64,6 +65,7 @@ class SettingsStore(context: Context) {
             .putBoolean("autoDockOnCharge", next.autoDockOnCharge)
             .putBoolean("nightOledEnabled", next.nightOledEnabled)
             .putBoolean("petEnabled", next.petEnabled)
+            .putString("petType", next.petType)
             .putInt("quietStartHour", next.quietStartHour)
             .putInt("quietEndHour", next.quietEndHour)
             .putString("city", next.city)

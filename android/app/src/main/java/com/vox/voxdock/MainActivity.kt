@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
                 ComponentName(this, NotificationCaptureService::class.java)
             )
         }
+        MediaMonitor.start(this)
 
         setContent {
             val settings by settingsStore.state.collectAsState()
@@ -108,12 +109,9 @@ class MainActivity : ComponentActivity() {
                 dimmed = true
             }
 
-            // Refresh Now Playing (Spotify / YT Music) every 3 seconds
+            // Keep MediaMonitor fresh on resume without clobbering instant callback state
             LaunchedEffect(Unit) {
-                while (true) {
-                    MediaMonitor.refresh(this@MainActivity)
-                    delay(3_000L)
-                }
+                MediaMonitor.refresh(this@MainActivity)
             }
 
             // Periodic poll of Cloudflare Worker
@@ -285,6 +283,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        MediaMonitor.stop()
         runCatching { unregisterReceiver(powerReceiver) }
         super.onDestroy()
     }

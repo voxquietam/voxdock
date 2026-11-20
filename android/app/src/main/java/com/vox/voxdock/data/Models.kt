@@ -167,29 +167,35 @@ data class AgentStatus(
 @Serializable
 enum class TileKind(
     val title: String,
-    val minSpan: Int,
-    val maxSpan: Int,
-    val defaultSpan: Int
+    val minColSpan: Int,
+    val maxColSpan: Int,
+    val minRowSpan: Int,
+    val maxRowSpan: Int,
+    val defaultColSpan: Int,
+    val defaultRowSpan: Int
 ) {
-    CLOCK("Clock", 1, 2, 2),
-    ALERT("Air Raid", 1, 2, 1),
-    WEATHER("Weather", 1, 2, 1),
-    POWER("DTEK Power", 1, 2, 2),
-    CURRENCY("FX USD/EUR", 1, 2, 1),
-    SUNSET_WAVES("Sunset & Waves", 1, 2, 1),
-    AIR_SENSORS("Air Sensors", 1, 2, 2),
-    AGENT_STATUS("Agent Status", 1, 2, 2),
-    SPOTIFY("Now Playing", 2, 2, 2),
-    UNSEEN("Unseen", 2, 2, 2),
-    MCP_NOTES("MCP Notes", 2, 2, 2),
-    ACTA_TASKS("ACTA Tasks", 2, 2, 2),
-    INBOX("Inbox", 2, 4, 2)
+    CLOCK("Clock", 1, 2, 1, 2, 2, 1),
+    ALERT("Air Raid", 1, 2, 1, 2, 1, 1),
+    WEATHER("Weather", 1, 2, 1, 2, 1, 1),
+    POWER("DTEK Power", 1, 2, 1, 2, 1, 1),
+    CURRENCY("FX USD/EUR", 1, 2, 1, 1, 1, 1),
+    SUNSET_WAVES("Sunset & Waves", 1, 2, 1, 1, 1, 1),
+    AIR_SENSORS("Air Sensors", 1, 2, 1, 1, 1, 1),
+    AGENT_STATUS("Agent Status", 1, 2, 1, 1, 1, 1),
+    SPOTIFY("Now Playing", 2, 3, 1, 2, 2, 2),
+    UNSEEN("Unseen", 1, 2, 1, 2, 1, 1),
+    MCP_NOTES("MCP Notes", 2, 3, 1, 2, 2, 1),
+    ACTA_TASKS("ACTA Tasks", 2, 3, 1, 3, 2, 2),
+    INBOX("Inbox", 2, 4, 1, 3, 2, 2)
 }
 
 @Serializable
 data class DockTile(
     val kind: TileKind,
-    val span: Int = kind.defaultSpan
+    val col: Int = 0,
+    val row: Int = 0,
+    val colSpan: Int = kind.defaultColSpan,
+    val rowSpan: Int = kind.defaultRowSpan
 )
 
 @Serializable
@@ -199,30 +205,31 @@ data class DockPage(
     val tiles: List<DockTile>
 )
 
+// 4x3 landscape Bento grid — every cell filled edge-to-edge with zero awkward gaps
 fun defaultDockPages(): List<DockPage> = listOf(
     DockPage(
         id = "main",
         name = "Dock",
         tiles = listOf(
-            DockTile(TileKind.CLOCK, 2),
-            DockTile(TileKind.MCP_NOTES, 2),
-            DockTile(TileKind.ALERT, 1),
-            DockTile(TileKind.WEATHER, 1),
-            DockTile(TileKind.INBOX, 2),
-            DockTile(TileKind.POWER, 2),
-            DockTile(TileKind.UNSEEN, 2),
-            DockTile(TileKind.AGENT_STATUS, 2)
+            DockTile(TileKind.CLOCK, col = 0, row = 0, colSpan = 2, rowSpan = 1),
+            DockTile(TileKind.MCP_NOTES, col = 2, row = 0, colSpan = 2, rowSpan = 1),
+            DockTile(TileKind.ALERT, col = 0, row = 1, colSpan = 1, rowSpan = 1),
+            DockTile(TileKind.WEATHER, col = 1, row = 1, colSpan = 1, rowSpan = 1),
+            DockTile(TileKind.INBOX, col = 2, row = 1, colSpan = 2, rowSpan = 2),
+            DockTile(TileKind.POWER, col = 0, row = 2, colSpan = 1, rowSpan = 1),
+            DockTile(TileKind.UNSEEN, col = 1, row = 2, colSpan = 1, rowSpan = 1)
         )
     ),
     DockPage(
         id = "media",
         name = "Media & Radar",
         tiles = listOf(
-            DockTile(TileKind.SPOTIFY, 2),
-            DockTile(TileKind.ACTA_TASKS, 2),
-            DockTile(TileKind.CURRENCY, 1),
-            DockTile(TileKind.SUNSET_WAVES, 1),
-            DockTile(TileKind.AIR_SENSORS, 2)
+            DockTile(TileKind.SPOTIFY, col = 0, row = 0, colSpan = 2, rowSpan = 2),
+            DockTile(TileKind.ACTA_TASKS, col = 2, row = 0, colSpan = 2, rowSpan = 2),
+            DockTile(TileKind.CURRENCY, col = 0, row = 2, colSpan = 1, rowSpan = 1),
+            DockTile(TileKind.SUNSET_WAVES, col = 1, row = 2, colSpan = 1, rowSpan = 1),
+            DockTile(TileKind.AIR_SENSORS, col = 2, row = 2, colSpan = 1, rowSpan = 1),
+            DockTile(TileKind.AGENT_STATUS, col = 3, row = 2, colSpan = 1, rowSpan = 1)
         )
     )
 )

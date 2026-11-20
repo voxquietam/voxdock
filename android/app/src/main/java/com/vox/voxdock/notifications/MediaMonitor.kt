@@ -6,6 +6,8 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,14 +24,69 @@ object MediaMonitor {
     private val _state = MutableStateFlow(NowPlayingState())
     val state: StateFlow<NowPlayingState> = _state.asStateFlow()
 
+    private var sessionManager: MediaSessionManager? = null
     private var activeController: MediaController? = null
+    private var sessionsListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val controllerCallback = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            pushFromController(activeController)
+        }
+
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            pushFromController(activeController)
+        }
+
+        override fun onSessionDestroyed() {
+            activeController = null
+            _state.value = NowPlayingState()
+        }
+    }
+
+    fun start(context: Context) {
+        val appCtx = context.applicationContext
+        val msm = appCtx.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager ?: return
+        sessionManager = msm
+        val component = ComponentName(appCtx, NotificationCaptureService::class.java)
+
+        if (sessionsListener == null) {
+            val listener = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
+                bindBestController(controllers.orEmpty())
+            }
+            sessionsListener = listener
+            runCatching {
+                msm.addOnActiveSessionsChangedListener(listener, component, mainHandler)
+            }
+        }
+        refresh(appCtx)
+    }
+
+    fun stop() {
+        sessionsListener?.let { listener ->
+            runCatching { sessionManager?.removeOnActiveSessionsChangedListener(listener) }
+        }
+        sessionsListener = null
+        detachController()
+    }
 
     fun refresh(context: Context) {
-        val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager ?: return
+        val msm = sessionManager
+            ?: (context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager)
+            ?: return
         val component = ComponentName(context, NotificationCaptureService::class.java)
         val controllers = runCatching { msm.getActiveSessions(component) }.getOrDefault(emptyList())
+        bindBestController(controllers)
+    }
 
-        // Prefer Spotify or currently playing controller
+    private fun detachController() {
+        activeController?.let {
+            runCatching { it.unregisterCallback(controllerCallback) }
+        }
+        activeController = null
+    }
+
+    private fun bindBestController(controllers: List<MediaController>) {
         val chosen = controllers.firstOrNull {
             it.playbackState?.state == PlaybackState.STATE_PLAYING && it.packageName.contains("spotify", true)
         } ?: controllers.firstOrNull {
@@ -38,16 +95,26 @@ object MediaMonitor {
             it.packageName.contains("spotify", true)
         } ?: controllers.firstOrNull()
 
-        activeController = chosen
+        if (chosen?.sessionToken != activeController?.sessionToken) {
+            detachController()
+            activeController = chosen
+            if (chosen != null) {
+                runCatching { chosen.registerCallback(controllerCallback, mainHandler) }
+            }
+        }
+        pushFromController(chosen)
+    }
+
+    private fun pushFromController(chosen: MediaController?) {
         if (chosen == null) {
             _state.value = NowPlayingState()
             return
         }
-
         val meta = chosen.metadata
         val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
         val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST).orEmpty()
-        val playing = chosen.playbackState?.state == PlaybackState.STATE_PLAYING
+        val pbState = chosen.playbackState?.state
+        val playing = pbState == PlaybackState.STATE_PLAYING || pbState == PlaybackState.STATE_BUFFERING
         val app = when {
             chosen.packageName.contains("spotify", true) -> "SPOTIFY"
             chosen.packageName.contains("youtube", true) -> "YT MUSIC"
@@ -65,11 +132,12 @@ object MediaMonitor {
 
     fun togglePlayPause() {
         val c = activeController ?: return
-        val playing = c.playbackState?.state == PlaybackState.STATE_PLAYING
+        val pbState = c.playbackState?.state
+        val playing = pbState == PlaybackState.STATE_PLAYING || pbState == PlaybackState.STATE_BUFFERING
         runCatching {
             if (playing) c.transportControls.pause() else c.transportControls.play()
         }
-        _state.value = _state.value.copy(isPlaying = !playing)
+        // Real state update arrives immediately via controllerCallback.onPlaybackStateChanged
     }
 
     fun next() {

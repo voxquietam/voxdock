@@ -15,7 +15,7 @@ class SettingsStore(context: Context) {
 
     private fun load(): AppSettings {
         val defaultUnseen = setOf("sea", "air", "quake", "space", "bio")
-        val rawPages = prefs.getString("pagesJson", null)
+        val rawPages = prefs.getString("pagesJson_v2", null)
         val pages = if (!rawPages.isNullOrBlank()) {
             runCatching { json.decodeFromString(ListSerializer(DockPage.serializer()), rawPages) }
                 .getOrNull()
@@ -77,7 +77,7 @@ class SettingsStore(context: Context) {
             .putString("powerQueue", next.powerQueue)
             .putStringSet("enabledUnseen", next.enabledUnseen)
             .putStringSet("mutedSources", next.mutedSources)
-            .apply { if (pagesJson != null) putString("pagesJson", pagesJson) }
+            .apply { if (pagesJson != null) putString("pagesJson_v2", pagesJson) }
             .apply()
     }
 }

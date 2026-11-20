@@ -40,41 +40,29 @@ fun PowerScheduleOverlay(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
-                    text = "DTEK 24H SCHEDULE // Q${power.queueGroup.ifBlank { "?" }}",
+                    text = "DTEK 24H // Q${power.queueGroup.ifBlank { "?" }}",
                     color = p.text,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 val next = power.nextChange?.let { " · NEXT: $it" }.orEmpty()
                 Text(
                     text = "${power.summary}$next",
                     color = p.muted,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .border(1.dp, p.border, RoundedCornerShape(5.dp))
-                        .background(p.card, RoundedCornerShape(5.dp))
-                        .clickable { onOpenSettings() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text("⚙ QUEUE", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-                }
-                Box(
-                    modifier = Modifier
-                        .border(1.dp, p.border, RoundedCornerShape(5.dp))
-                        .background(p.card, RoundedCornerShape(5.dp))
-                        .clickable { onClose() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text("CLOSE ✕", color = p.text, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SmallPill("⚙", false, onOpenSettings)
+                SmallPill("CLOSE ✕", false, onClose)
             }
         }
 

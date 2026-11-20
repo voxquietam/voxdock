@@ -49,37 +49,27 @@ fun WeatherForecastOverlay(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text(
-                    text = "${weather.city.uppercase()} · 10-DAY FORECAST",
+                    text = "${weather.city.uppercase()} · 10-DAY",
                     color = p.text,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 val sea = weather.current.seaTemp?.let { " · SEA ${it}°C" }.orEmpty()
                 Text(
-                    text = "NOW ${weather.current.temp}°C (FEELS ${weather.current.feelsLike}°C) · WIND ${weather.current.windSpeed} km/h$sea",
+                    text = "NOW ${weather.current.temp}°C · WIND ${weather.current.windSpeed} km/h$sea",
                     color = p.muted,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
-            Box(
-                modifier = Modifier
-                    .border(1.dp, p.border, RoundedCornerShape(5.dp))
-                    .background(p.card, RoundedCornerShape(5.dp))
-                    .clickable { onClose() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "CLOSE ✕",
-                    color = p.text,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-            }
+            SmallPill("CLOSE ✕", false, onClose)
         }
 
         LazyColumn(

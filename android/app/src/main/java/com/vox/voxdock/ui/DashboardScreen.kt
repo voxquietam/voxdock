@@ -70,6 +70,8 @@ fun DashboardScreen(
     settings: AppSettings,
     notifications: List<CapturedNotification>,
     nowPlaying: NowPlayingState,
+    batteryPct: Int,
+    isCharging: Boolean,
     syncError: String?,
     updateAvailable: UpdatePayload?,
     updateProgress: Int?,
@@ -136,6 +138,21 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(p.bg)
     ) {
+        // Ambient vertical Status Spine in the left display-cutout strip (landscape only)
+        if (isLandscape) {
+            CameraStatusSpine(
+                batteryPct = batteryPct,
+                isCharging = isCharging,
+                alertLevel = dashboard.alerts.selected.level,
+                isPlayingMusic = nowPlaying.isPlaying,
+                petEnabled = settings.petEnabled,
+                petType = settings.petType,
+                pageCount = pages.size,
+                currentPage = pagerState.currentPage,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

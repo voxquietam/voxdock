@@ -36,18 +36,30 @@ private enum class ActiveOverlay { NONE, MAP, WEATHER, POWER, UNSEEN, ACTA, SETT
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
     private var isCharging by mutableStateOf(false)
+    private var batteryPct by mutableIntStateOf(100)
 
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
             isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
+            val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+            if (level >= 0 && scale > 0) {
+                batteryPct = ((level * 100) / scale).coerceIn(0, 100)
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         settingsStore = SettingsStore(this)
         registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         runCatching {
@@ -182,6 +194,8 @@ class MainActivity : ComponentActivity() {
                             settings = settings.copy(dockMode = effectiveDock),
                             notifications = notifications,
                             nowPlaying = nowPlaying,
+                            batteryPct = batteryPct,
+                            isCharging = isCharging,
                             syncError = syncError,
                             updateAvailable = availableUpdate,
                             updateProgress = updateProgress,

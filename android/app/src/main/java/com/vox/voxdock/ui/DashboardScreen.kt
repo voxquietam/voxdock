@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -111,6 +113,23 @@ fun DashboardScreen(
 
     val p = LocalVoxPalette.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val view = LocalView.current
+    val density = LocalDensity.current
+    // Compute hardware-exact safe inset for rounded display corners: (1 - 1/sqrt(2)) * R (~17dp on Xiaomi 17 Ultra R=170px)
+    val cornerSafeDp = remember(view, density) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val insets = view.rootWindowInsets
+            val rPx = listOf(
+                android.view.RoundedCorner.POSITION_TOP_LEFT,
+                android.view.RoundedCorner.POSITION_TOP_RIGHT,
+                android.view.RoundedCorner.POSITION_BOTTOM_LEFT,
+                android.view.RoundedCorner.POSITION_BOTTOM_RIGHT
+            ).maxOfOrNull { insets?.getRoundedCorner(it)?.radius ?: 0 } ?: 0
+            with(density) { (rPx * 0.293f).toDp() }.coerceIn(8.dp, 22.dp)
+        } else {
+            8.dp
+        }
+    }
     val pages = settings.pages.ifEmpty { defaultDockPages() }
     val pagerState = rememberPagerState(pageCount = { pages.size })
     var activeSourceFilter by remember { mutableStateOf("ALL") }
@@ -138,30 +157,40 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(p.bg)
     ) {
-        // Ambient vertical Status Spine in the left display-cutout strip (landscape only)
+        // Subtle 3dp left-edge air raid status strip in landscape (clean, zero clutter)
         if (isLandscape) {
-            CameraStatusSpine(
-                batteryPct = batteryPct,
-                isCharging = isCharging,
-                alertLevel = dashboard.alerts.selected.level,
-                isPlayingMusic = nowPlaying.isPlaying,
-                petEnabled = settings.petEnabled,
-                petType = settings.petType,
-                pageCount = pages.size,
-                currentPage = pagerState.currentPage,
-                modifier = Modifier.align(Alignment.CenterStart)
+            val alertStripColor = when (dashboard.alerts.selected.level) {
+                "active" -> Color(0xFFEF4444)
+                "partial" -> Color(0xFFF59E0B)
+                else -> Color(0xFF22C55E).copy(alpha = 0.55f)
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 3.dp)
+                    .fillMaxHeight(0.84f)
+                    .width(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(alertStripColor)
             )
         }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .safeDrawingPadding()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) { onWakeInteraction() }
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(
+                    start = if (isLandscape) 8.dp else cornerSafeDp,
+                    end = cornerSafeDp,
+                    top = if (settings.dockMode) cornerSafeDp * 0.7f else 6.dp,
+                    bottom = if (settings.dockMode) cornerSafeDp * 0.7f else 6.dp
+                )
         ) {
             // Unified clean top Edit Bar (never overlaps tiles!)
             if (editMode) {
@@ -401,6 +430,8 @@ fun DashboardScreen(
                                 RenderTileContent(
                                     tile = tile,
                                     clockText = clockText,
+                                    batteryPct = batteryPct,
+                                    isCharging = isCharging,
                                     dashboard = dashboard,
                                     settings = settings,
                                     notifications = filteredNotifs,
@@ -410,6 +441,10 @@ fun DashboardScreen(
                                     updateProgress = updateProgress,
                                     activeSourceFilter = activeSourceFilter,
                                     editMode = editMode,
+                                    onLongPressTile = {
+                                        editMode = true
+                                        selectedKind = tile.kind
+                                    },
                                     onToggleDock = onToggleDock,
                                     onToggleTheme = onToggleTheme,
                                     onToggleEdit = {
@@ -429,6 +464,19 @@ fun DashboardScreen(
                                     onDismissNotification = onDismissNotification,
                                     onToggleMuteSource = onToggleMuteSource
                                 )
+                                // Clear visual cue in Edit Mode when another tile is selected for swap
+                                if (editMode && selectedKind != null && !isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(5.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xCC111118))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Text("⇄", color = Color(0xFF818CF8), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -448,6 +496,8 @@ fun DashboardScreen(
                                 RenderTileContent(
                                     tile = tile,
                                     clockText = clockText,
+                                    batteryPct = batteryPct,
+                                    isCharging = isCharging,
                                     dashboard = dashboard,
                                     settings = settings,
                                     notifications = filteredNotifs,
@@ -457,6 +507,10 @@ fun DashboardScreen(
                                     updateProgress = updateProgress,
                                     activeSourceFilter = activeSourceFilter,
                                     editMode = editMode,
+                                    onLongPressTile = {
+                                        editMode = true
+                                        selectedKind = tile.kind
+                                    },
                                     onToggleDock = onToggleDock,
                                     onToggleTheme = onToggleTheme,
                                     onToggleEdit = { editMode = !editMode },
@@ -607,10 +661,13 @@ fun DashboardScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RenderTileContent(
     tile: DockTile,
     clockText: String,
+    batteryPct: Int,
+    isCharging: Boolean,
     dashboard: DashboardResponse,
     settings: AppSettings,
     notifications: List<CapturedNotification>,
@@ -620,6 +677,7 @@ private fun RenderTileContent(
     updateProgress: Int?,
     activeSourceFilter: String,
     editMode: Boolean,
+    onLongPressTile: () -> Unit,
     onToggleDock: () -> Unit,
     onToggleTheme: () -> Unit,
     onToggleEdit: () -> Unit,
@@ -640,6 +698,8 @@ private fun RenderTileContent(
         TileKind.CLOCK -> ClockTile(
             clockText = clockText,
             city = settings.city,
+            batteryPct = batteryPct,
+            isCharging = isCharging,
             settings = settings,
             syncError = syncError,
             updateAvailable = updateAvailable,
@@ -650,17 +710,37 @@ private fun RenderTileContent(
             onOpenSettings = onOpenSettings,
             onTriggerUpdate = onTriggerUpdate
         )
-        TileKind.ALERT -> AlertTile(dashboard = dashboard, onOpenMap = { if (!editMode) onOpenMap() })
-        TileKind.WEATHER -> WeatherTile(dashboard = dashboard, onOpenWeather = { if (!editMode) onOpenWeather() })
-        TileKind.POWER -> PowerTile(dashboard = dashboard, onOpenPower = { if (!editMode) onOpenPower() })
+        TileKind.ALERT -> AlertTile(
+            dashboard = dashboard,
+            onOpenMap = { if (!editMode) onOpenMap() },
+            onLongPress = onLongPressTile
+        )
+        TileKind.WEATHER -> WeatherTile(
+            dashboard = dashboard,
+            onOpenWeather = { if (!editMode) onOpenWeather() },
+            onLongPress = onLongPressTile
+        )
+        TileKind.POWER -> PowerTile(
+            dashboard = dashboard,
+            onOpenPower = { if (!editMode) onOpenPower() },
+            onLongPress = onLongPressTile
+        )
         TileKind.CURRENCY -> CurrencyTile(currency = dashboard.currency)
         TileKind.SUNSET_WAVES -> SunsetWavesTile(weather = dashboard.weather)
         TileKind.AIR_SENSORS -> AirSensorsTile(sensors = dashboard.sensors)
         TileKind.AGENT_STATUS -> AgentStatusStrip(dashboard = dashboard)
         TileKind.SPOTIFY -> SpotifyTile(nowPlaying = nowPlaying)
-        TileKind.UNSEEN -> UnseenTile(dashboard = dashboard, onOpen = { if (!editMode) onOpenUnseen() })
+        TileKind.UNSEEN -> UnseenTile(
+            dashboard = dashboard,
+            onOpen = { if (!editMode) onOpenUnseen() },
+            onLongPress = onLongPressTile
+        )
         TileKind.MCP_NOTES -> McpNotesCard(dashboard = dashboard, onDismissNote = { if (!editMode) onDismissNote(it) })
-        TileKind.ACTA_TASKS -> ActaTasksTile(acta = dashboard.acta, onOpen = { if (!editMode) onOpenActa() })
+        TileKind.ACTA_TASKS -> ActaTasksTile(
+            acta = dashboard.acta,
+            onOpen = { if (!editMode) onOpenActa() },
+            onLongPress = onLongPressTile
+        )
         TileKind.INBOX -> NotificationsCard(
             items = notifications,
             activeFilter = activeSourceFilter,
@@ -677,6 +757,8 @@ private fun RenderTileContent(
 private fun ClockTile(
     clockText: String,
     city: String,
+    batteryPct: Int,
+    isCharging: Boolean,
     settings: AppSettings,
     syncError: String?,
     updateAvailable: UpdatePayload?,
@@ -688,55 +770,82 @@ private fun ClockTile(
     onTriggerUpdate: () -> Unit
 ) {
     val p = LocalVoxPalette.current
-    Row(
+    val dateLabel = remember {
+        SimpleDateFormat("EEE · dd MMM", Locale.US).format(Date()).uppercase()
+    }
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .border(1.dp, p.border, RoundedCornerShape(7.dp))
             .background(p.card, RoundedCornerShape(7.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Column(verticalArrangement = Arrangement.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(if (syncError == null) Color(0xFF22C55E) else Color(0xFFF59E0B))
+        // Scale clock font size adaptively to tile height
+        val clockSp = when {
+            maxHeight >= 150.dp -> 62.sp
+            maxHeight >= 100.dp -> 46.sp
+            else -> 36.sp
+        }
+        val batLabel = if (isCharging) "⚡$batteryPct%" else "$batteryPct%"
+
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (syncError == null) Color(0xFF22C55E) else Color(0xFFF59E0B))
+                    )
+                    Text(
+                        text = "VOXDOCK // ${city.uppercase()} · $batLabel",
+                        color = p.muted,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(
+                    text = clockText,
+                    color = p.text,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = clockSp,
+                    lineHeight = clockSp,
+                    maxLines = 1
                 )
                 Text(
-                    text = "VOXDOCK // ${city.uppercase()}",
+                    text = dateLabel,
                     color = p.muted,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 8.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontSize = 9.sp
                 )
             }
-            Text(
-                text = clockText,
-                color = p.text,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 26.sp
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (updateAvailable != null) {
-                val label = if (updateProgress != null) "↓$updateProgress%" else "↑${updateAvailable.version}"
-                SmallPill(label = label, highlighted = true, onClick = onTriggerUpdate)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (updateAvailable != null) {
+                    val label = if (updateProgress != null) "↓$updateProgress%" else "↑${updateAvailable.version}"
+                    SmallPill(label = label, highlighted = true, onClick = onTriggerUpdate)
+                }
+                SmallPill(label = if (settings.dockMode) "☾ ON" else "☾", highlighted = settings.dockMode, onClick = onToggleDock)
+                SmallPill(label = if (settings.darkTheme) "☀" else "☾", highlighted = false, onClick = onToggleTheme)
+                SmallPill(label = "⊞", highlighted = false, onClick = onToggleEdit)
+                SmallPill(label = "⚙", highlighted = false, onClick = onOpenSettings)
             }
-            SmallPill(label = if (settings.dockMode) "☾ ON" else "☾", highlighted = settings.dockMode, onClick = onToggleDock)
-            SmallPill(label = if (settings.darkTheme) "☀" else "☾", highlighted = false, onClick = onToggleTheme)
-            SmallPill(label = "⊞", highlighted = false, onClick = onToggleEdit)
-            SmallPill(label = "⚙", highlighted = false, onClick = onOpenSettings)
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlertTile(dashboard: DashboardResponse, onOpenMap: () -> Unit) {
+private fun AlertTile(dashboard: DashboardResponse, onOpenMap: () -> Unit, onLongPress: () -> Unit) {
     val p = LocalVoxPalette.current
     val sel = dashboard.alerts.selected
     val (bg, border, txt, label) = when (sel.level) {
@@ -749,7 +858,7 @@ private fun AlertTile(dashboard: DashboardResponse, onOpenMap: () -> Unit) {
             .fillMaxSize()
             .border(1.dp, border, RoundedCornerShape(7.dp))
             .background(bg, RoundedCornerShape(7.dp))
-            .clickable { onOpenMap() }
+            .combinedClickable(onClick = onOpenMap, onLongClick = onLongPress)
             .padding(9.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -762,8 +871,9 @@ private fun AlertTile(dashboard: DashboardResponse, onOpenMap: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun WeatherTile(dashboard: DashboardResponse, onOpenWeather: () -> Unit) {
+private fun WeatherTile(dashboard: DashboardResponse, onOpenWeather: () -> Unit, onLongPress: () -> Unit) {
     val p = LocalVoxPalette.current
     val cur = dashboard.weather.current
     Column(
@@ -771,7 +881,7 @@ private fun WeatherTile(dashboard: DashboardResponse, onOpenWeather: () -> Unit)
             .fillMaxSize()
             .border(1.dp, p.weatherBorder.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
             .background(p.weatherBg, RoundedCornerShape(7.dp))
-            .clickable { onOpenWeather() }
+            .combinedClickable(onClick = onOpenWeather, onLongClick = onLongPress)
             .padding(9.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -785,8 +895,9 @@ private fun WeatherTile(dashboard: DashboardResponse, onOpenWeather: () -> Unit)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PowerTile(dashboard: DashboardResponse, onOpenPower: () -> Unit) {
+private fun PowerTile(dashboard: DashboardResponse, onOpenPower: () -> Unit, onLongPress: () -> Unit) {
     val p = LocalVoxPalette.current
     val pw = dashboard.power
     val dot = when (pw.status) {
@@ -800,7 +911,7 @@ private fun PowerTile(dashboard: DashboardResponse, onOpenPower: () -> Unit) {
             .fillMaxSize()
             .border(1.dp, p.powerBorder.copy(alpha = 0.4f), RoundedCornerShape(7.dp))
             .background(p.powerBg, RoundedCornerShape(7.dp))
-            .clickable { onOpenPower() }
+            .combinedClickable(onClick = onOpenPower, onLongClick = onLongPress)
             .padding(9.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -970,15 +1081,16 @@ private fun FullWidthMediaBtn(label: String, highlighted: Boolean, modifier: Mod
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ActaTasksTile(acta: ActaPayload, onOpen: () -> Unit) {
+private fun ActaTasksTile(acta: ActaPayload, onOpen: () -> Unit, onLongPress: () -> Unit) {
     val p = LocalVoxPalette.current
     Column(
         modifier = Modifier
             .fillMaxSize()
             .border(1.dp, Color(0xFF6366F1).copy(alpha = 0.45f), RoundedCornerShape(7.dp))
             .background(p.card, RoundedCornerShape(7.dp))
-            .clickable { onOpen() }
+            .combinedClickable(onClick = onOpen, onLongClick = onLongPress)
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -1006,8 +1118,9 @@ private fun ActaTasksTile(acta: ActaPayload, onOpen: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UnseenTile(dashboard: DashboardResponse, onOpen: () -> Unit) {
+private fun UnseenTile(dashboard: DashboardResponse, onOpen: () -> Unit, onLongPress: () -> Unit) {
     val p = LocalVoxPalette.current
     val item = dashboard.unseen.firstOrNull()
     Column(
@@ -1015,7 +1128,7 @@ private fun UnseenTile(dashboard: DashboardResponse, onOpen: () -> Unit) {
             .fillMaxSize()
             .border(1.dp, p.unseenBorder.copy(alpha = 0.4f), RoundedCornerShape(7.dp))
             .background(p.unseenBg, RoundedCornerShape(7.dp))
-            .clickable { onOpen() }
+            .combinedClickable(onClick = onOpen, onLongClick = onLongPress)
             .padding(9.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {

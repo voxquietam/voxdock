@@ -80,6 +80,7 @@ fun UkraineMapOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(p.bg)
+            .safeDrawingPadding()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

@@ -81,6 +81,7 @@ fun DashboardScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(p.bg)
+            .safeDrawingPadding()
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null

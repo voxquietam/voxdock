@@ -10,6 +10,9 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.*
 import com.vox.voxdock.data.AppSettings
 import com.vox.voxdock.data.DashboardResponse
@@ -41,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         settingsStore = SettingsStore(this)
         registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
 
@@ -59,12 +63,19 @@ class MainActivity : ComponentActivity() {
             val effectiveDock = settings.dockMode || (settings.autoDockOnCharge && isCharging && isLandscape)
             val nightOled = effectiveDock && settings.nightOledEnabled && isQuietHour(settings) && dimmed
 
-            // Keep screen on & control window brightness in Dock Mode
-            LaunchedEffect(effectiveDock, dimmed, dashboard.alerts.selected.level) {
+            // Keep screen on, toggle immersive bars & control window brightness in Dock Mode
+            LaunchedEffect(effectiveDock, dimmed, dashboard.alerts.selected.level, settings.darkTheme) {
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.isAppearanceLightStatusBars = !settings.darkTheme
+                controller.isAppearanceLightNavigationBars = !settings.darkTheme
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 if (effectiveDock) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    controller.hide(WindowInsetsCompat.Type.systemBars())
                 } else {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    controller.show(WindowInsetsCompat.Type.systemBars())
                 }
                 val lp = window.attributes
                 lp.screenBrightness = when {

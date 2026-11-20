@@ -54,6 +54,7 @@ fun SettingsOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(p.bg)
+            .safeDrawingPadding()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)

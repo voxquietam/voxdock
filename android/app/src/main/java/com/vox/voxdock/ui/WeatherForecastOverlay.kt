@@ -19,14 +19,14 @@ import com.vox.voxdock.data.WeatherPayload
 import com.vox.voxdock.ui.theme.LocalVoxPalette
 
 fun weatherIcon(code: Int): String = when (code) {
-    0 -> "☀"
-    in 1..3 -> "🌤"
-    in 45..48 -> "🌫"
-    in 51..67 -> "🌧"
-    in 71..77 -> "❄"
-    in 80..82 -> "🌦"
-    in 95..99 -> "⛈"
-    else -> "☁"
+    0 -> "☀️"
+    in 1..3 -> "⛅"
+    in 45..48 -> "🌫️"
+    in 51..67 -> "🌧️"
+    in 71..77 -> "❄️"
+    in 80..82 -> "🌦️"
+    in 95..99 -> "⛈️"
+    else -> "☁️"
 }
 
 @Composable
@@ -40,6 +40,7 @@ fun WeatherForecastOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(p.bg)
+            .safeDrawingPadding()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

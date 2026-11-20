@@ -24,13 +24,14 @@ import com.vox.voxdock.notifications.NotificationStore
 import com.vox.voxdock.ui.DashboardScreen
 import com.vox.voxdock.ui.SettingsOverlay
 import com.vox.voxdock.ui.UkraineMapOverlay
+import com.vox.voxdock.ui.UnseenOverlay
 import com.vox.voxdock.ui.WeatherForecastOverlay
 import com.vox.voxdock.ui.theme.VoxDockTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-private enum class ActiveOverlay { NONE, MAP, WEATHER, SETTINGS }
+private enum class ActiveOverlay { NONE, MAP, WEATHER, UNSEEN, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
@@ -135,6 +136,11 @@ class MainActivity : ComponentActivity() {
                         weather = dashboard.weather,
                         onClose = { overlay = ActiveOverlay.NONE }
                     )
+                    ActiveOverlay.UNSEEN -> UnseenOverlay(
+                        city = settings.city,
+                        findings = dashboard.unseen,
+                        onClose = { overlay = ActiveOverlay.NONE }
+                    )
                     ActiveOverlay.SETTINGS -> SettingsOverlay(
                         settings = settings,
                         onSave = { updated ->
@@ -164,6 +170,10 @@ class MainActivity : ComponentActivity() {
                         onOpenWeather = {
                             lastInteractionMs = System.currentTimeMillis()
                             overlay = ActiveOverlay.WEATHER
+                        },
+                        onOpenUnseen = {
+                            lastInteractionMs = System.currentTimeMillis()
+                            overlay = ActiveOverlay.UNSEEN
                         },
                         onOpenSettings = {
                             lastInteractionMs = System.currentTimeMillis()

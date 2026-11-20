@@ -42,6 +42,7 @@ fun DashboardScreen(
     onToggleDock: () -> Unit,
     onOpenMap: () -> Unit,
     onOpenWeather: () -> Unit,
+    onOpenUnseen: () -> Unit,
     onOpenSettings: () -> Unit,
     onDismissNote: (Int) -> Unit,
     onOpenNotification: (CapturedNotification) -> Unit,
@@ -124,11 +125,7 @@ fun DashboardScreen(
                         dashboard = dashboard,
                         index = unseenIndex,
                         compact = true,
-                        onNext = {
-                            if (dashboard.unseen.isNotEmpty()) {
-                                unseenIndex = (unseenIndex + 1) % dashboard.unseen.size
-                            }
-                        }
+                        onOpen = onOpenUnseen
                     )
                     AgentStatusStrip(dashboard = dashboard)
                 }
@@ -180,11 +177,7 @@ fun DashboardScreen(
                 UnseenTile(
                     dashboard = dashboard,
                     index = unseenIndex,
-                    onNext = {
-                        if (dashboard.unseen.isNotEmpty()) {
-                            unseenIndex = (unseenIndex + 1) % dashboard.unseen.size
-                        }
-                    }
+                    onOpen = onOpenUnseen
                 )
                 McpNotesCard(
                     dashboard = dashboard,
@@ -425,7 +418,7 @@ private fun UnseenTile(
     dashboard: DashboardResponse,
     index: Int,
     compact: Boolean = false,
-    onNext: () -> Unit
+    onOpen: () -> Unit
 ) {
     val p = LocalVoxPalette.current
     val item = dashboard.unseen.getOrNull(index)
@@ -435,7 +428,7 @@ private fun UnseenTile(
             .fillMaxWidth()
             .border(1.dp, p.unseenBorder.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
             .background(p.unseenBg, RoundedCornerShape(14.dp))
-            .clickable { onNext() }
+            .clickable { onOpen() }
             .padding(if (compact) 8.dp else 10.dp)
     ) {
         if (item == null) {
@@ -444,7 +437,7 @@ private fun UnseenTile(
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("◈ UNSEEN · ${item.category.uppercase()}", color = p.unseenBorder, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                Text("score ${"%.1f".format(item.score)} ↻", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                Text("score ${"%.1f".format(item.score)} · ${dashboard.unseen.size} ↗", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
             }
             Text(item.title, color = p.text, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(item.explanation, color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 10.sp, maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis)

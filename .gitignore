@@ -1,0 +1,21 @@
+# OS & Editor
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Node / Cloudflare Worker
+node_modules/
+worker/.wrangler/
+worker/dist/
+.dev.vars
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore

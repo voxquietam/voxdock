@@ -1,0 +1,130 @@
+package com.vox.voxdock.data
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class DashboardResponse(
+    val serverTime: String = "",
+    val alerts: AlertsPayload = AlertsPayload(),
+    val weather: WeatherPayload = WeatherPayload(),
+    val unseen: List<UnseenFinding> = emptyList(),
+    val power: PowerPayload = PowerPayload(),
+    val notes: List<NoteItem> = emptyList(),
+    val agentStatus: AgentStatus = AgentStatus()
+)
+
+@Serializable
+data class OblastAlert(
+    val uid: Int = 18,
+    val code: String = "OD",
+    val name: String = "Odesa",
+    val level: String = "none" // "none" | "partial" | "active"
+)
+
+@Serializable
+data class AlertsPayload(
+    val source: String = "unconfigured",
+    val updatedAt: String = "",
+    val selectedUid: Int = 18,
+    val selected: OblastAlert = OblastAlert(),
+    val oblasts: List<OblastAlert> = emptyList()
+)
+
+@Serializable
+data class CurrentWeather(
+    val temp: Int = 0,
+    val feelsLike: Int = 0,
+    val windSpeed: Int = 0,
+    val weatherCode: Int = 0,
+    val seaTemp: Double? = null
+)
+
+@Serializable
+data class DailyForecast(
+    val date: String = "",
+    val tempMin: Int = 0,
+    val tempMax: Int = 0,
+    val precipProb: Int = 0,
+    val windMax: Int = 0,
+    val weatherCode: Int = 0
+)
+
+@Serializable
+data class WeatherPayload(
+    val city: String = "Odesa",
+    val lat: Double = 46.48,
+    val lon: Double = 30.72,
+    val updatedAt: String = "",
+    val current: CurrentWeather = CurrentWeather(),
+    val daily: List<DailyForecast> = emptyList()
+)
+
+@Serializable
+data class UnseenFinding(
+    val id: String = "",
+    val category: String = "sea",
+    val title: String = "",
+    val explanation: String = "",
+    val score: Double = 0.0,
+    val metric: String = "",
+    val observedAt: String = ""
+)
+
+@Serializable
+data class PowerSlot(
+    val startHour: Int = 0,
+    val endHour: Int = 0,
+    val state: String = "on"
+)
+
+@Serializable
+data class PowerPayload(
+    val city: String = "Odesa",
+    val street: String = "",
+    val house: String = "",
+    val queueGroup: String = "",
+    val status: String = "unconfigured",
+    val summary: String = "Set address & queue in Settings",
+    val nextChange: String? = null,
+    val slots: List<PowerSlot> = emptyList(),
+    val updatedAt: String = ""
+)
+
+@Serializable
+data class NoteItem(
+    val id: Int = 0,
+    val kind: String = "note",
+    val text: String = "",
+    val remindAt: String? = null,
+    val pinned: Boolean = false,
+    val source: String = "mcp",
+    val createdAt: String = ""
+)
+
+@Serializable
+data class AgentStatus(
+    val level: String = "ok",
+    val message: String = "VoxDock ready",
+    val source: String = "system",
+    val updatedAt: String = ""
+)
+
+data class AppSettings(
+    val workerUrl: String = "",
+    val apiToken: String = "",
+    val darkTheme: Boolean = true,
+    val dockMode: Boolean = false,
+    val autoDockOnCharge: Boolean = true,
+    val nightOledEnabled: Boolean = true,
+    val quietStartHour: Int = 23,
+    val quietEndHour: Int = 7,
+    val city: String = "Odesa",
+    val lat: Double = 46.48,
+    val lon: Double = 30.72,
+    val oblastUid: Int = 18,
+    val powerStreet: String = "",
+    val powerHouse: String = "",
+    val powerQueue: String = "",
+    val enabledUnseen: Set<String> = setOf("sea", "air", "quake", "space", "bio"),
+    val mutedSources: Set<String> = emptySet()
+)

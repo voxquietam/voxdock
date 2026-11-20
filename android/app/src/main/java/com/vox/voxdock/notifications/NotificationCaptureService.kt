@@ -1,0 +1,68 @@
+package com.vox.voxdock.notifications
+
+import android.app.Notification
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+
+class NotificationCaptureService : NotificationListenerService() {
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        NotificationStore.cancelCallback = { key ->
+            runCatching { cancelNotification(key) }
+        }
+        val active = runCatching { activeNotifications?.toList().orEmpty() }.getOrDefault(emptyList())
+        NotificationStore.replaceAll(active.mapNotNull { toCaptured(it) })
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        NotificationStore.cancelCallback = null
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        toCaptured(sbn)?.let { NotificationStore.upsert(it) }
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        NotificationStore.removeByKey(sbn.key)
+    }
+
+    private fun toCaptured(sbn: StatusBarNotification): CapturedNotification? {
+        if (sbn.packageName == packageName) return null
+        if (sbn.isOngoing) return null
+
+        val source = classifySource(sbn.packageName, sbn.notification) ?: return null
+        val extras = sbn.notification.extras
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+        val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+            ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()?.trim().orEmpty()
+
+        if (title.isBlank() && text.isBlank()) return null
+
+        return CapturedNotification(
+            key = sbn.key,
+            source = source,
+            packageName = sbn.packageName,
+            sender = title.ifBlank { source },
+            text = text.ifBlank { title },
+            timestampMs = sbn.postTime,
+            contentIntent = sbn.notification.contentIntent
+        )
+    }
+
+    private fun classifySource(pkg: String, notification: Notification): String? {
+        val lower = pkg.lowercase()
+        val title = notification.extras.getCharSequence(Notification.EXTRA_TITLE)
+            ?.toString()?.lowercase().orEmpty()
+        val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)
+            ?.toString()?.lowercase().orEmpty()
+
+        return when {
+            lower.contains("telegram") || lower.contains("ayugram") || lower.contains("nekogram") -> "TG"
+            lower.contains("zoom") -> "ZOOM"
+            lower.contains("ksu24") || title.contains("ksu24") || text.contains("ksu24") -> "KSU24"
+            else -> null
+        }
+    }
+}

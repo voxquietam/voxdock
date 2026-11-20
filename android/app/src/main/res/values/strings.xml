@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">VoxDock</string>
+    <string name="notification_listener_label">VoxDock Notification Capture</string>
+</resources>

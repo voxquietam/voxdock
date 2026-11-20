@@ -19,10 +19,20 @@ object NotificationStore {
     private val _items = MutableStateFlow<List<CapturedNotification>>(emptyList())
     val items: StateFlow<List<CapturedNotification>> = _items.asStateFlow()
 
+    private val _connected = MutableStateFlow(false)
+    val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
     var cancelCallback: ((String) -> Unit)? = null
 
+    fun setConnected(value: Boolean) {
+        _connected.value = value
+    }
+
     fun upsert(item: CapturedNotification) {
-        val current = _items.value.filterNot { it.key == item.key }
+        val current = _items.value.filterNot {
+            it.key == item.key ||
+                (it.source == item.source && it.sender == item.sender && it.text == item.text)
+        }
         _items.value = (listOf(item) + current).take(50)
     }
 
@@ -36,6 +46,13 @@ object NotificationStore {
     }
 
     fun replaceAll(list: List<CapturedNotification>) {
-        _items.value = list.sortedByDescending { it.timestampMs }.take(50)
+        val deduped = LinkedHashMap<String, CapturedNotification>()
+        for (item in list.sortedByDescending { it.timestampMs }) {
+            val sig = "${item.source}|${item.sender}|${item.text}"
+            if (!deduped.containsKey(sig)) {
+                deduped[sig] = item
+            }
+        }
+        _items.value = deduped.values.take(50)
     }
 }

@@ -556,6 +556,7 @@ private fun NotificationsCard(
 ) {
     val p = LocalVoxPalette.current
     val sources = listOf("ALL", "TG", "KSU24", "ZOOM")
+    val listenerOn by com.vox.voxdock.notifications.NotificationStore.connected.collectAsState()
 
     Column(
         modifier = modifier
@@ -569,7 +570,21 @@ private fun NotificationsCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("INBOX", color = p.muted, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(if (listenerOn) Color(0xFF22C55E) else Color(0xFFF59E0B))
+                )
+                Text(
+                    text = if (listenerOn) "INBOX" else "INBOX · RE-ENABLE ACCESS",
+                    color = if (listenerOn) p.muted else Color(0xFFF59E0B),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.sp
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 sources.forEach { src ->
                     val selected = activeFilter == src

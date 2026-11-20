@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                             }
                             dashboard = it
                             syncError = null
+                            com.vox.voxdock.widget.VoxDockWidgetProvider.pushState(this@MainActivity, it)
                         }.onFailure { err ->
                             syncError = err.message
                         }

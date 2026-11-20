@@ -1,50 +1,35 @@
 import { readCache, writeCache } from "../cache";
 import type { Env, UpdatePayload } from "../types";
 
-interface GithubReleaseResponse {
-  tag_name?: string;
-  body?: string;
-  published_at?: string;
-  assets?: Array<{
-    name: string;
-    browser_download_url: string;
-  }>;
-}
-
 const GITHUB_REPO = "voxquietam/voxdock";
+const APK_ASSET_NAME = "app-debug.apk";
 
 export async function getLatestUpdate(env: Env): Promise<UpdatePayload | null> {
-  const cached = await readCache<UpdatePayload | { empty: true }>(env.DB, "github_latest_release", 900);
-  if (cached) {
-    return "empty" in cached ? null : cached;
-  }
+  const cached = await readCache<UpdatePayload>(env.DB, "github_latest_release_v2", 300);
+  if (cached) return cached;
 
   try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: {
-        "User-Agent": "VoxDock-Worker/0.2",
-        Accept: "application/vnd.github+json"
-      }
+    // Use github.com redirect instead of api.github.com to avoid shared Cloudflare egress IP rate limits
+    const res = await fetch(`https://github.com/${GITHUB_REPO}/releases/latest`, {
+      method: "HEAD",
+      redirect: "manual",
+      headers: { "User-Agent": "VoxDock-Worker/0.2" }
     });
-    if (!res.ok) {
-      await writeCache(env.DB, "github_latest_release", { empty: true });
-      return null;
-    }
 
-    const rel = (await res.json()) as GithubReleaseResponse;
-    const apk = rel.assets?.find((a) => a.name.toLowerCase().endsWith(".apk"));
-    if (!apk || !rel.tag_name) {
-      await writeCache(env.DB, "github_latest_release", { empty: true });
-      return null;
-    }
+    const location = res.headers.get("location") ?? "";
+    const match = location.match(/\/releases\/tag\/([^/?#]+)/);
+    if (!match) return null;
 
+    const tag = match[1].trim();
+    const version = tag.replace(/^v/i, "");
     const payload: UpdatePayload = {
-      version: rel.tag_name.replace(/^v/i, "").trim(),
-      apkUrl: apk.browser_download_url,
-      notes: (rel.body ?? "").trim().slice(0, 240),
-      publishedAt: rel.published_at ?? new Date().toISOString()
+      version,
+      apkUrl: `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${APK_ASSET_NAME}`,
+      notes: `Release ${tag}`,
+      publishedAt: new Date().toISOString()
     };
-    await writeCache(env.DB, "github_latest_release", payload);
+
+    await writeCache(env.DB, "github_latest_release_v2", payload);
     return payload;
   } catch {
     return null;
